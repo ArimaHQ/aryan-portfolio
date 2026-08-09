@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import type { ActiveChamber, AnimationPolicy } from '@/types/experience';
 import { NeuralNetwork } from './NeuralNetwork';
 import styles from './NeuralExperience.module.css';
@@ -11,7 +12,7 @@ type Props = {
   onNavigate: (chamber: ActiveChamber) => void;
 };
 
-export function NeuralCore({ activeChamber, policy, active, onNavigate }: Props) {
+function NeuralCoreComponent({ activeChamber, policy, active, onNavigate }: Props) {
   return (
     <section className={styles.neuralCore} data-active={active} aria-label="Arima neural core">
       <div className={styles.coreDepth} aria-hidden="true">
@@ -25,3 +26,6 @@ export function NeuralCore({ activeChamber, policy, active, onNavigate }: Props)
     </section>
   );
 }
+
+// Memoize to prevent unnecessary re-renders
+export const NeuralCore = memo(NeuralCoreComponent);

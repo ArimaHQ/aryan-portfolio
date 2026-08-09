@@ -24,6 +24,7 @@ export function ConnectionLine({ connection, sourceNode, targetNode, delay = 0 }
   const pathD = `M ${sourceNode.x} ${sourceNode.y} C ${midX1} ${midY1}, ${midX2} ${midY2}, ${targetNode.x} ${targetNode.y}`;
 
   const color = sourceNode.color || '#69c8ff';
+  const isAnimated = connection.animated ?? true;
 
   return (
     <motion.path
@@ -32,13 +33,15 @@ export function ConnectionLine({ connection, sourceNode, targetNode, delay = 0 }
       stroke={color}
       strokeWidth={0.5}
       strokeOpacity={0.15}
-      initial={{ pathLength: 0, opacity: 0 }}
+      initial={isAnimated ? { pathLength: 0, opacity: 0 } : false}
       animate={{ pathLength: 1, opacity: 1 }}
-      transition={{
-        duration: 1.2,
-        delay,
-        ease: [0.16, 1, 0.3, 1],
-      }}
+      transition={isAnimated
+        ? {
+            duration: 1.2,
+            delay,
+            ease: [0.16, 1, 0.3, 1],
+          }
+        : { duration: 0 }}
       style={{
         filter: `drop-shadow(0 0 4px ${color}44)`,
       }}

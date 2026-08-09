@@ -4,8 +4,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { createLoadingTimeline } from '@/animations/gsap';
+import { motion } from 'framer-motion';
 import type { LoadingScreenProps } from '@/types';
 
 export function LoadingScreen({

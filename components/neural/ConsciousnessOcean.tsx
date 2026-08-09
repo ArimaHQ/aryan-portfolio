@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import type {
   AnimationPolicy,
   AvatarVisualState,
@@ -18,7 +19,7 @@ type Props = {
   arrival: 'seed' | 'spiral' | 'ocean' | 'ready';
 };
 
-export function ConsciousnessOcean({
+function ConsciousnessOceanComponent({
   policy,
   mode,
   avatarState,
@@ -52,3 +53,6 @@ export function ConsciousnessOcean({
     </div>
   );
 }
+
+// Memoize to prevent unnecessary re-renders
+export const ConsciousnessOcean = memo(ConsciousnessOceanComponent);

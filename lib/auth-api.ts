@@ -1,6 +1,6 @@
 import type { User } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
+const API_URL = '';
 const AUTH_PATH = '/api/v1/auth';
 const CSRF_COOKIE_NAME = process.env.NEXT_PUBLIC_ARIMA_CSRF_COOKIE_NAME ?? 'arima_csrf_token';
 
@@ -89,9 +89,7 @@ const correlationId = () => (
 );
 
 const apiUrl = (path: string) => {
-  if (!API_URL) {
-    throw new AuthApiError('Arima API URL is not configured.');
-  }
+  if (!API_URL) return path;
   return `${API_URL}${path}`;
 };
 
@@ -305,7 +303,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return payload as T;
 }
 
-async function getCsrfToken(): Promise<string> {
+/**
+ * Returns the current double-submit CSRF token, obtaining one through the
+ * existing authentication endpoint when the browser does not have one yet.
+ *
+ * This is shared with the general API client so authenticated mutations use
+ * the same token lifecycle as the authentication flows.
+ */
+export async function getCsrfToken(): Promise<string> {
   const cookieToken = csrfCookieToken();
   if (cookieToken) csrfToken = cookieToken;
   if (csrfToken) return csrfToken;

@@ -1,230 +1,55 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from '@playwright/test';
 
-async function openFilm(page: import("@playwright/test").Page) {
-  await page.goto("/");
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
+async function openArrival(page: import('@playwright/test').Page) {
+  await page.goto('/');
+  await expect(page.locator('.arrival-world')).toBeVisible();
 }
 
-test("renders only the Phase 1 cinematic film", async ({ page }) => {
+test('renders the current Arima arrival experience without client errors', async ({ page }) => {
   const errors: string[] = [];
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-  page.on("pageerror", (error) => errors.push(error.message));
-  await openFilm(page);
-  await expect(page.locator(".phase-one-film")).toBeVisible();
-  await expect(page.locator(".film-stage")).toBeVisible();
-  await expect(page.locator(".animation-diagnostics")).toHaveCount(0);
-  await expect(page.locator(".cinematic-nav")).toHaveCount(0);
-  await expect(page.locator(".portfolio-scene, .founder-scene, .contact-scene")).toHaveCount(0);
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await openArrival(page);
+
+  await expect(page.getByText('ARIMA FINANCE / EST. LONDON', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ARIMA FINANCE', exact: true })).toBeVisible();
+  await expect(page.getByText('Intelligence for capital in motion.', { exact: true })).toBeVisible();
+  await expect(page.getByText('PRIVATE INTELLIGENCE · PUBLIC PURPOSE', { exact: true })).toBeVisible();
+  await expect(page.locator('.arrival-portal')).toHaveCount(2);
   expect(errors).toEqual([]);
 });
 
-test("one native-scroll master timeline produces six distinct desktop states", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop cinematic state validation");
-  await openFilm(page);
-  await expect(page.locator(".pin-spacer")).toHaveCount(1);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  expect(maxScroll).toBeGreaterThanOrEqual(55_500);
+test('arrival portals lead to the established client and journey routes', async ({ page }) => {
+  await openArrival(page);
 
-  const states: Array<{ progress: number; candle: string; universe: string; af: string; name: string }> = [];
-  for (const progress of [0, 20 / 830, 40 / 830, 60 / 830, 80 / 830, 100 / 830]) {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * progress);
-    await page.waitForTimeout(1_300);
-    states.push(await page.evaluate((value) => ({
-      progress: value,
-      candle: getComputedStyle(document.querySelector(".film-candle")!).transform,
-      universe: getComputedStyle(document.querySelector(".data-universe")!).opacity,
-      af: getComputedStyle(document.querySelector(".af-film-mark")!).opacity,
-      name: getComputedStyle(document.querySelector(".af-film-name")!).opacity,
-    }), progress));
-  }
+  await page.getByRole('button', { name: /client portfolio/i }).click();
+  await expect(page).toHaveURL(/\/client-portfolio\/?$/);
 
-  expect(states[0].candle).not.toBe(states[2].candle);
-  expect(Number(states[3].universe)).toBeGreaterThan(0);
-  expect(Number(states[4].universe)).toBe(1);
-  expect(Number(states[5].af)).toBeGreaterThan(.99);
-  expect(Number(states[5].name)).toBeGreaterThan(.99);
+  await page.goBack();
+  await expect(page.locator('.arrival-world')).toBeVisible();
+  await page.getByRole('button', { name: /experience the journey/i }).click();
+  await expect(page).toHaveURL(/\/watch-intro\/?$/);
 });
 
-test("Phase 2 continues through rotation, districts and destination", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop Phase 2 state validation");
-  await openFilm(page);
-  await expect(page.locator(".pin-spacer")).toHaveCount(1);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const seek = async (phase: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * ((100 + phase) / 830));
-    await page.waitForTimeout(1_300);
-  };
+test('reduced motion still reveals the complete readable arrival state', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openArrival(page);
 
-  await seek(25);
-  const quarterTurn = await page.locator(".rotation-chamber").evaluate((node) => getComputedStyle(node).transform);
-  await seek(35);
-  const halfTurn = await page.locator(".rotation-chamber").evaluate((node) => getComputedStyle(node).transform);
-  await seek(55);
-  const fullTurn = await page.locator(".rotation-chamber").evaluate((node) => getComputedStyle(node).transform);
-  expect(new Set([quarterTurn, halfTurn, fullTurn]).size).toBe(3);
-
-  await seek(67);
-  await expect(page.getByText("HSBC", { exact: true })).toBeVisible();
-  await expect(page.getByText("Barclays", { exact: true })).toBeVisible();
-  await seek(82);
-  await expect(page.getByText("Bloomberg", { exact: true })).toBeVisible();
-  await expect(page.getByText("Nasdaq", { exact: true })).toBeVisible();
-  await seek(92);
-  await expect(page.getByText("Citadel", { exact: true })).toBeVisible();
-  await expect(page.getByText("Jane Street", { exact: true })).toBeVisible();
-  await seek(100);
-  await expect(page.locator(".arima-destination")).toBeVisible();
-  await expect(page.locator(".arima-destination").getByText("ARIMA FINANCE")).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'ARIMA FINANCE', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /client portfolio/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /experience the journey/i })).toBeVisible();
 });
 
-test("Phase 3 enters headquarters and reveals three spatial divisions", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop Phase 3 state validation");
-  await openFilm(page);
-  await expect(page.locator(".pin-spacer")).toHaveCount(1);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const seek = async (position: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (position / 830));
-    await page.waitForTimeout(1_300);
-  };
+test('arrival layout remains within the mobile viewport', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'mobile-only viewport validation');
+  await openArrival(page);
 
-  await seek(214);
-  await expect(page.locator(".af-entrance")).toBeVisible();
-  await seek(238);
-  await expect(page.locator(".intelligence-hall")).toBeVisible();
-  await seek(258);
-  await expect(page.locator(".core-identity").getByText("ARIMA FINANCE")).toBeVisible();
-  await seek(288);
-  await expect(page.getByText("Investment Banking & Financial Intelligence", { exact: true })).toBeVisible();
-  await expect(page.getByText("Projects & Technology", { exact: true })).toBeVisible();
-  await seek(318);
-  await expect(page.locator(".division-3").getByText("AF Portfolio Lab", { exact: true })).toBeVisible();
-  await expect(page.locator(".model-disclosure")).toBeVisible();
-});
-
-test("Phase 3 closes into a light beam and darkness without revealing later content", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop endpoint validation");
-  await openFilm(page);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (336 / 830));
-  await page.waitForTimeout(1_300);
-  await expect(page.locator(".founder-transition-beam")).toBeVisible();
-  await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (350 / 830));
-  await page.waitForTimeout(1_300);
-  await expect(page.locator(".phase-three-darkness")).toHaveCSS("opacity", "1");
-  await expect(page.locator(".founder-scene, .contact-scene, .cinematic-nav")).toHaveCount(0);
-});
-
-test("Phase 4 reveals the Founder story and stops before Projects", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop Founder sequence validation");
-  await openFilm(page);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const seek = async (position: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (position / 830));
-    await page.waitForTimeout(1_300);
-  };
-  await seek(378);
-  await expect(page.locator(".founder-identity h2")).toHaveText("ARYAN HEIDARI");
-  await expect(page.locator(".founder-identity h2")).toBeVisible();
-  await seek(398);
-  await expect(page.getByText("ENGINEERING FOUNDATIONS", { exact: true })).toBeVisible();
-  await seek(416);
-  await expect(page.getByText("FINANCE & MARKETS", { exact: true })).toBeVisible();
-  await seek(434);
-  await expect(page.getByRole("heading", { name: "QUANTITATIVE INTELLIGENCE", exact: true })).toBeVisible();
-  await seek(450);
-  await expect(page.locator(".experience-field").getByText("Bank of England", { exact: true })).toBeVisible();
-  await seek(468);
-  await expect(page.getByText("Monte Carlo Simulation", { exact: true })).toBeVisible();
-  await seek(482);
-  await expect(page.locator(".founder-connections").getByText("RISK MANAGEMENT CORE", { exact: true })).toBeVisible();
-  await seek(496);
-  await expect(page.getByText("Building financial systems where research, technology and risk discipline converge.", { exact: true })).toBeVisible();
-  await expect(page.locator(".portfolio-scene, .project-panel, .contact-scene, .cinematic-nav")).toHaveCount(0);
-});
-
-test("Phase 5 travels through five project worlds and stops before Contact", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop Projects journey validation");
-  await openFilm(page);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const seek = async (position: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (position / 830));
-    await page.waitForTimeout(1_300);
-  };
-  await seek(514);
-  await expect(page.getByRole("heading", { name: "Arima Finance Engine", exact: true })).toBeVisible();
-  await seek(525);
-  await expect(page.locator(".market-monitors").getByText("XAUUSD", { exact: true })).toBeVisible();
-  await seek(536);
-  await expect(page.locator(".engine-workflow span").filter({ hasText: "Risk Plan" })).toBeVisible();
-  await seek(550);
-  await expect(page.locator(".risk-core-project")).toBeVisible();
-  await seek(566);
-  await expect(page.getByText("Automated regression testing", { exact: true })).toBeVisible();
-  await seek(590);
-  await expect(page.locator(".portfolio-world").getByRole("heading", { name: "AF Portfolio Lab", exact: true })).toBeVisible();
-  await seek(600);
-  await expect(page.locator(".lab-disclosure")).toBeVisible();
-  await seek(615);
-  await expect(page.getByRole("heading", { name: "Quantitative Trading Systems", exact: true })).toBeVisible();
-  await seek(630);
-  await expect(page.getByRole("heading", { name: /Financial Research/ })).toBeVisible();
-  await seek(642);
-  await expect(page.getByRole("heading", { name: /Financial Technology/ })).toBeVisible();
-  await seek(655);
-  await expect(page.locator(".project-constellation")).toBeVisible();
-  await seek(676);
-  await expect(page.locator(".project-end-corridor")).toBeVisible();
-  await expect(page.locator(".contact-scene, .cinematic-nav")).toHaveCount(0);
-});
-
-test("Final chapter completes the journey and reveals standard website mode only on action", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop final chapter validation");
-  await openFilm(page);
-  const maxScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const seek = async (position: number) => {
-    await page.evaluate((top) => window.scrollTo(0, top), maxScroll * (position / 830));
-    await page.waitForTimeout(1_300);
-  };
-
-  await seek(706);
-  await expect(page.locator(".connect-control-room")).toBeVisible();
-  await seek(722);
-  await expect(page.getByRole("heading", { name: "Every meaningful journey begins with a conversation.", exact: true })).toBeVisible();
-  await seek(742);
-  await expect(page.getByText("Work With Arima", { exact: true })).toBeVisible();
-  await expect(page.getByText("Research Collaboration", { exact: true })).toBeVisible();
-  await expect(page.getByText("Let's Build Together", { exact: true })).toBeVisible();
-  await seek(752);
-  await expect(page.locator(".connect-details").getByText("Email", { exact: true })).toBeVisible();
-  await expect(page.locator(".connect-details").getByText("Company Profile (PDF)", { exact: true })).toBeVisible();
-  await seek(812);
-  await expect(page.locator(".final-af-reveal").getByText("ARIMA FINANCE", { exact: true })).toBeVisible();
-  await seek(824);
-  await expect(page.getByRole("button", { name: "Replay Journey", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Enter Website", exact: true })).toBeVisible();
-  await expect(page.locator("#standard-website")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "Enter Website", exact: true }).click();
-  await expect(page.locator("#standard-website")).toBeVisible();
-  await expect(page.locator("#standard-website").getByText("Home", { exact: true })).toBeVisible();
-  await expect(page.locator("#standard-contact").getByText("aryan.hd@outlook.com", { exact: true })).toBeVisible();
-});
-
-test("reduced motion reveals the readable static headquarters", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await openFilm(page);
-  await expect(page.locator(".af-headquarters")).toBeVisible();
-  await expect(page.locator(".af-headquarters").getByText("AF Portfolio Lab", { exact: true })).toBeVisible();
-  await expect(page.locator(".pin-spacer")).toHaveCount(0);
-});
-
-test("responsive fallback has no horizontal overflow", async ({ page, isMobile }) => {
-  test.skip(!isMobile, "mobile-only validation");
-  await openFilm(page);
   const dimensions = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
 });

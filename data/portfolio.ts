@@ -22,7 +22,7 @@ export const portfolioItems: PortfolioItem[] = [
     status: "In Active Development",
     results: "Public architecture release v0.1.0; production logic remains private.",
     visual: "engine",
-    href: "https://github.com/arima7576/Arima-Finance-Engine",
+    href: "https://github.com/ArimaHQ/Arima-Finance-Engine",
   },
   {
     slug: "investment-memorandum",

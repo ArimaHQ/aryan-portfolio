@@ -7,13 +7,8 @@ let registered = false;
 export function ensureAnimationPlugins() {
   if (typeof window === "undefined") return false;
   if (!registered) {
-    console.log("[Arima Animation] runtime initialization", { browser: true });
     gsap.registerPlugin(ScrollTrigger, useGSAP);
     registered = true;
-    console.log("[Arima Animation] plugins registered", {
-      gsap: Boolean(gsap),
-      ScrollTrigger: Boolean(ScrollTrigger),
-    });
   }
   return true;
 }

@@ -37,8 +37,8 @@ export function DoorCard({ door, onEnter, isLocked = false }: DoorCardProps) {
           'border border-white/10 hover:border-white/30',
           'transition-all duration-500'
         )}
-        whileHover={{ scale: 1.03, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', transition: { duration: 0.4, ease: 'easeOut' } }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={doorHover.hover}
+        whileTap={doorHover.tap}
         onClick={() => !isLocked && onEnter?.(door.id)}
         style={{ cursor: isLocked ? 'not-allowed' : 'pointer' }}
       >

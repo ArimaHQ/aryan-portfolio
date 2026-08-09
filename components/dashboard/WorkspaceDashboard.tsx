@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import MarketIntelligencePanel from "./MarketIntelligencePanel";
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/providers';
 import {
@@ -88,7 +89,12 @@ export function WorkspaceDashboard() {
 
   useEffect(() => {
     if (!isInitialized || !isAuthenticated) return;
-    void load();
+
+    // Defer the network request until after effect setup. This keeps the
+    // effect focused on synchronising the authenticated dashboard lifecycle,
+    // while `load` remains reusable by the explicit retry action.
+    const initialLoad = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(initialLoad);
   }, [isAuthenticated, isInitialized, load]);
 
   if (!isInitialized || isLoading) {
@@ -174,6 +180,7 @@ export function WorkspaceDashboard() {
             <div><span>Avg. completion</span><strong>{summary.averageCompletionTimeHours.toFixed(1)}h</strong><small>Across completed workspace tasks</small></div>
           </div>
         </section>
+        <MarketIntelligencePanel />
         <footer className="lab-footer">Arima Executive OS · Live backend data is scoped to your permitted access.</footer>
       </section>
     </main>

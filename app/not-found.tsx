@@ -5,7 +5,7 @@
 
 import { motion } from 'framer-motion';
 import { AnimatedButton, BackgroundEffects } from '@/components/shared';
-import { fadeInUp, staggerContainer, staggerItem } from '@/animations/framer';
+import { staggerContainer, staggerItem } from '@/animations/framer';
 
 export default function NotFoundPage() {
   return (
@@ -33,7 +33,7 @@ export default function NotFoundPage() {
           variants={staggerItem}
           className="text-white/40 mb-8 max-w-md mx-auto"
         >
-          This dimension doesn't exist — or has yet to be discovered. Return to familiar space.
+          This dimension doesn&apos;t exist — or has yet to be discovered. Return to familiar space.
         </motion.p>
 
         <motion.div variants={staggerItem}>

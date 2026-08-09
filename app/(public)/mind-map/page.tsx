@@ -14,7 +14,7 @@ export default function MindMapPage() {
   const router = useRouter();
   const [showChoices, setShowChoices] = useState(false);
 
-  const handleNodeClick = useCallback((nodeId: string) => {
+  const handleNodeClick = useCallback(() => {
     setShowChoices(true);
   }, []);
 

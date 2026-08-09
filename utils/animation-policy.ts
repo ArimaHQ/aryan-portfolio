@@ -11,16 +11,16 @@ const particleCounts: Record<AnimationQuality, number> = {
   reduced: 0,
   low: 40,
   mobile: 96,
-  standard: 260,
-  high: 420,
+  standard: 120,
+  high: 200,
 };
 
 const depthLayers: Record<AnimationQuality, number> = {
   reduced: 1,
   low: 2,
   mobile: 3,
-  standard: 5,
-  high: 7,
+  standard: 4,
+  high: 5,
 };
 
 export const resolveAnimationPolicy = (signals: AnimationSignals): AnimationPolicy => {

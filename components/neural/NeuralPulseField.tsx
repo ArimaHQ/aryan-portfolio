@@ -1,6 +1,4 @@
-'use client';
-
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import type {
   AnimationPolicy,
   AvatarVisualState,
@@ -80,7 +78,7 @@ const cubicPoint = (
     + progress ** 3 * end;
 };
 
-export function NeuralPulseField({
+function NeuralPulseFieldComponent({
   policy,
   active = true,
   mode = 'avatar',
@@ -126,12 +124,15 @@ export function NeuralPulseField({
     let height = 1;
     let devicePixelRatio = 1;
     let frame = 0;
+    let lastFrameTime = 0;
+    const FRAME_INTERVAL_MS = 1000 / 30; // ~30 FPS target
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       width = Math.max(1, rect.width);
       height = Math.max(1, rect.height);
-      devicePixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
+      // Cap DPR at 1.25 to reduce fill-rate while keeping the field crisp.
+      devicePixelRatio = Math.min(window.devicePixelRatio || 1, 1.25);
       canvas.width = Math.floor(width * devicePixelRatio);
       canvas.height = Math.floor(height * devicePixelRatio);
       context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
@@ -196,9 +197,7 @@ export function NeuralPulseField({
         context.beginPath();
         traceRibbon(index, time);
         context.strokeStyle = 'rgba(121, 218, 255, ' + (opacity * 1.48).toFixed(3) + ')';
-        context.lineWidth = 0.7 + (index % 3) * 0.55;
-        context.shadowColor = '#59c8ff';
-        context.shadowBlur = policy.quality === 'low' ? 5 : 17;
+        context.lineWidth = 1.1 + (index % 3) * 0.7;
         context.stroke();
       }
       context.restore();
@@ -233,8 +232,6 @@ export function NeuralPulseField({
       context.save();
       context.globalCompositeOperation = 'lighter';
       context.strokeStyle = 'rgba(160, 239, 255, ' + (0.12 * arrivalProgress).toFixed(3) + ')';
-      context.shadowColor = '#6ed1ff';
-      context.shadowBlur = 18;
       for (let index = 0; index < policy.depthLayers; index += 1) {
         const radius = Math.min(width, height) * (0.17 + index * 0.105);
         context.beginPath();
@@ -306,9 +303,7 @@ export function NeuralPulseField({
         context.moveTo(startX, startY);
         context.bezierCurveTo(controlOneX, controlOneY, controlTwoX, controlTwoY, endX, endY);
         context.strokeStyle = 'rgba(106, 215, 255, ' + alpha.toFixed(3) + ')';
-        context.lineWidth = 0.65 + (index % 3) * 0.4;
-        context.shadowColor = '#65caff';
-        context.shadowBlur = 11;
+        context.lineWidth = 1 + (index % 3) * 0.5;
         context.stroke();
 
         const travel = (movement * (0.58 + (index % 4) * 0.15) + index / count) % 1;
@@ -358,9 +353,7 @@ export function NeuralPulseField({
         );
         const brightness = engaged ? 0.3 : 0.15;
         context.strokeStyle = 'rgba(113, 218, 255, ' + (brightness * arrivalProgress).toFixed(3) + ')';
-        context.lineWidth = engaged ? 1.65 : 0.9;
-        context.shadowColor = '#75d6ff';
-        context.shadowBlur = engaged ? 16 : 8;
+        context.lineWidth = engaged ? 2.1 : 1.2;
         context.stroke();
 
         context.strokeStyle = 'rgba(220, 251, 255, ' + (brightness * 0.42 * arrivalProgress).toFixed(3) + ')';
@@ -391,8 +384,6 @@ export function NeuralPulseField({
       context.save();
       context.globalCompositeOperation = 'lighter';
       context.translate(centreX, centreY);
-      context.shadowColor = '#7bd7ff';
-      context.shadowBlur = 26;
       context.lineWidth = 1;
 
       if (visual.arrival === 'seed' || visual.arrival === 'spiral') {
@@ -525,8 +516,6 @@ export function NeuralPulseField({
       const fade = Math.sin(burstProgress * Math.PI) * arrivalProgress;
       context.save();
       context.globalCompositeOperation = 'lighter';
-      context.shadowColor = '#8be5ff';
-      context.shadowBlur = 14;
       for (let index = 0; index < 15; index += 1) {
         const angle = index / 15 * tau + time * 0.0002;
         const distance = Math.min(width, height) * burstProgress * (0.16 + index % 4 * 0.035);
@@ -541,6 +530,13 @@ export function NeuralPulseField({
     };
 
     const draw = (time: number) => {
+      // Frame-rate limiter: only render every ~33ms (30 FPS target).
+      if (time - lastFrameTime < FRAME_INTERVAL_MS) {
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+      lastFrameTime = time;
+
       context.clearRect(0, 0, width, height);
       const arrival = visualRef.current.arrival;
       const arrivalProgress = arrival === 'seed'
@@ -565,9 +561,15 @@ export function NeuralPulseField({
       : new ResizeObserver(resize);
     observer?.observe(canvas);
     window.addEventListener('resize', resize);
-    draw(performance.now());
+
+    // Defer the first frame to allow the page to paint first
+    // This prevents the canvas from blocking the initial render
+    const startDelay = window.setTimeout(() => {
+      draw(performance.now());
+    }, 50);
 
     return () => {
+      window.clearTimeout(startDelay);
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
       window.removeEventListener('resize', resize);
@@ -577,3 +579,6 @@ export function NeuralPulseField({
 
   return <canvas ref={canvasRef} className={styles.pulseField} aria-hidden="true" />;
 }
+
+// Memoize to prevent unnecessary re-renders
+export const NeuralPulseField = memo(NeuralPulseFieldComponent);

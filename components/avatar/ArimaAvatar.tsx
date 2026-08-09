@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import type { AvatarVisualState } from '@/types/experience';
 import styles from '@/components/neural/NeuralExperience.module.css';
@@ -30,7 +31,7 @@ const stateCopy: Record<AvatarVisualState, string> = {
   completed: 'Arima completed the task',
 };
 
-export function ArimaAvatar({
+function ArimaAvatarComponent({
   state,
   amplitude,
   arrival = 'ready',
@@ -101,3 +102,6 @@ export function ArimaAvatar({
     </div>
   );
 }
+
+// Memoize to prevent unnecessary re-renders when parent re-renders
+export const ArimaAvatar = memo(ArimaAvatarComponent);

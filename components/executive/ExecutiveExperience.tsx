@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, memo, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArimaAvatar } from '@/components/avatar/ArimaAvatar';
 import { ChamberRenderer } from '@/components/chambers/ChamberRenderer';
@@ -32,8 +32,131 @@ const statusCopy = {
 
 type ArrivalPhase = 'seed' | 'spiral' | 'ocean' | 'ready';
 
+// Extract clock into a separate component so it doesn't re-render the whole tree
+function ClockDisplay() {
+  const [clock, setClock] = useState('');
+  useEffect(() => {
+    const updateClock = () => setClock(new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(new Date()));
+    updateClock();
+    const interval = window.setInterval(updateClock, 1_000);
+    return () => window.clearInterval(interval);
+  }, []);
+  return <span>{clock}</span>;
+}
+
+// Memoize the header to prevent re-renders on every state change
+const ExperienceHeader = memo(function ExperienceHeader({
+  mode,
+  voiceMode,
+  userName,
+}: {
+  mode: string;
+  voiceMode: string;
+  userName?: string;
+}) {
+  return (
+    <header className={styles.experienceHeader}>
+      <Link href="/" className={styles.brand} aria-label="Return to Arima home">
+        <b className={styles.brandMark}>AF</b>
+        <span className={styles.brandCopy}><b>ARIMA</b>EXECUTIVE OS</span>
+      </Link>
+      <div className={styles.headerMode}>
+        <strong className={voiceMode === 'demo' ? styles.demoBadge : styles.liveBadge}>
+          {voiceMode === 'demo' ? 'DEMO MODE' : 'LIVE MODE'}
+        </strong>
+        <ClockDisplay />
+        <span>{mode.replaceAll('_', ' ')}</span>
+      </div>
+      <div className={styles.userLock}><i />PRIVATE / {userName ?? 'AUTHORISED USER'}</div>
+    </header>
+  );
+});
+
+// Memoize the voice bar
+const VoiceBar = memo(function VoiceBar({
+  voiceState,
+  voiceStatus,
+  voiceMessage,
+  isSpeaking,
+  onSpeak,
+  onRetry,
+}: {
+  voiceState: string;
+  voiceStatus: string;
+  voiceMessage: string;
+  isSpeaking: boolean;
+  onSpeak: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className={styles.voiceBar} data-state={voiceState} role="status" aria-live="polite">
+      <i aria-hidden="true" />
+      <span>{statusCopy[voiceStatus as keyof typeof statusCopy] ?? voiceStatus}</span>
+      {voiceMessage && <p>{voiceMessage}</p>}
+      <button
+        type="button"
+        onClick={onSpeak}
+      >
+        {isSpeaking ? 'Interrupt' : 'Speak'}
+      </button>
+      {voiceStatus === 'recognition_unavailable' && (
+        <button type="button" onClick={onRetry}>Retry</button>
+      )}
+    </div>
+  );
+});
+
+// Memoize the controls
+const ExperienceControls = memo(function ExperienceControls({
+  keyboardOpen,
+  muted,
+  captions,
+  reducedMotion,
+  highContrast,
+  canExit,
+  canRepeat,
+  onKeyboard,
+  onMute,
+  onCaptions,
+  onReducedMotion,
+  onContrast,
+  onRepeat,
+  onExit,
+}: {
+  keyboardOpen: boolean;
+  muted: boolean;
+  captions: boolean;
+  reducedMotion: boolean;
+  highContrast: boolean;
+  canExit: boolean;
+  canRepeat: boolean;
+  onKeyboard: () => void;
+  onMute: () => void;
+  onCaptions: () => void;
+  onReducedMotion: () => void;
+  onContrast: () => void;
+  onRepeat: () => void;
+  onExit: () => void;
+}) {
+  return (
+    <div className={styles.experienceControls} aria-label="Experience controls">
+      <button type="button" onClick={onKeyboard} aria-expanded={keyboardOpen}>Keyboard</button>
+      <button type="button" onClick={onMute} aria-pressed={muted}>{muted ? 'Unmute' : 'Mute'}</button>
+      <button type="button" onClick={onCaptions} aria-pressed={captions}>Captions</button>
+      <button type="button" onClick={onReducedMotion} aria-pressed={reducedMotion}>Simplify</button>
+      <button type="button" onClick={onContrast} aria-pressed={highContrast}>Contrast</button>
+      <button type="button" onClick={onRepeat} disabled={!canRepeat}>Repeat</button>
+      <button type="button" onClick={onExit} disabled={!canExit}>Exit</button>
+    </div>
+  );
+});
+
 export function ExecutiveExperience() {
-  const { user } = useAuth();
+  const { user, isInitialized, isAuthenticated } = useAuth();
   const experienceRootRef = useRef<HTMLElement | null>(null);
   const experience = useNeuralExperience();
   const {
@@ -59,7 +182,6 @@ export function ExecutiveExperience() {
     reducedMotionOverride,
     setReducedMotionOverride,
   } = experience;
-  const [clock, setClock] = useState('');
   const [keyboardValue, setKeyboardValue] = useState('');
   const [highContrast, setHighContrast] = useState(false);
   const [arrival, setArrival] = useState<ArrivalPhase>('seed');
@@ -78,18 +200,25 @@ export function ExecutiveExperience() {
     onVoiceResponse: handleVoiceResponse,
     onNavigation: handleVoiceNavigation,
     onStateChange: handleVoiceState,
+    // Wait until auth has fully restored the session (and the access token is
+    // available) before creating the voice session. Otherwise the voice
+    // request fires without Authorization and receives a 401, which falls
+    // back to demo mode.
+    authReady: isInitialized && isAuthenticated,
   });
-
-  useEffect(() => {
-    const updateClock = () => setClock(new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).format(new Date()));
-    updateClock();
-    const interval = window.setInterval(updateClock, 1_000);
-    return () => window.clearInterval(interval);
-  }, []);
+  const {
+    state: voiceControllerState,
+    keyboardOpen,
+    muted,
+    captions,
+    setKeyboardOpen,
+    setMuted,
+    setCaptions,
+    startListening,
+    retryListening,
+    interrupt,
+    repeat,
+  } = voice;
 
   useEffect(() => {
     if (animation.reducedMotion) {
@@ -188,6 +317,47 @@ export function ExecutiveExperience() {
     ?? (voice.captions ? voice.response : '')
     ?? '';
 
+  // Memoize the handlers to prevent unnecessary re-renders
+  const handleSpeak = useCallback(() => {
+    if (voiceControllerState === 'speaking') {
+      void interrupt();
+    } else {
+      void startListening();
+    }
+  }, [interrupt, startListening, voiceControllerState]);
+
+  const handleKeyboardToggle = useCallback(() => {
+    setKeyboardOpen(!keyboardOpen);
+  }, [keyboardOpen, setKeyboardOpen]);
+
+  const handleMuteToggle = useCallback(() => {
+    setMuted(!muted);
+  }, [muted, setMuted]);
+
+  const handleCaptionsToggle = useCallback(() => {
+    setCaptions(!captions);
+  }, [captions, setCaptions]);
+
+  const handleReducedMotionToggle = useCallback(() => {
+    setReducedMotionOverride(!reducedMotionOverride);
+  }, [reducedMotionOverride, setReducedMotionOverride]);
+
+  const handleContrastToggle = useCallback(() => {
+    setHighContrast((value) => !value);
+  }, []);
+
+  const handleRepeat = useCallback(() => {
+    repeat();
+  }, [repeat]);
+
+  const handleExit = useCallback(() => {
+    exitCore();
+  }, [exitCore]);
+
+  const handleRetry = useCallback(() => {
+    void retryListening();
+  }, [retryListening]);
+
   return (
     <main
       ref={experienceRootRef}
@@ -207,20 +377,11 @@ export function ExecutiveExperience() {
       />
       <div className={styles.worldGrid} aria-hidden="true" />
       <div className={styles.worldVignette} aria-hidden="true" />
-      <header className={styles.experienceHeader}>
-        <Link href="/" className={styles.brand} aria-label="Return to Arima home">
-          <b className={styles.brandMark}>AF</b>
-          <span className={styles.brandCopy}><b>ARIMA</b>EXECUTIVE OS</span>
-        </Link>
-        <div className={styles.headerMode}>
-          <strong className={voice.mode === 'demo' ? styles.demoBadge : styles.liveBadge}>
-            {voice.mode === 'demo' ? 'DEMO MODE' : 'LIVE MODE'}
-          </strong>
-          <span>{clock}</span>
-          <span>{mode.replaceAll('_', ' ')}</span>
-        </div>
-        <div className={styles.userLock}><i />PRIVATE / {user?.name ?? 'AUTHORISED USER'}</div>
-      </header>
+      <ExperienceHeader
+        mode={mode}
+        voiceMode={voice.mode}
+        userName={user?.name}
+      />
 
       <div
         className={styles.cameraWorld}
@@ -272,34 +433,31 @@ export function ExecutiveExperience() {
 
       <ChamberTransition transition={transition} />
 
-      <div className={styles.voiceBar} data-state={voiceState} role="status" aria-live="polite">
-        <i aria-hidden="true" />
-        <span>{statusCopy[voice.voiceStatus]}</span>
-        {voiceMessage && <p>{voiceMessage}</p>}
-        <button
-          type="button"
-          onClick={() => (
-            voice.state === 'speaking'
-              ? void voice.interrupt()
-              : void voice.startListening()
-          )}
-        >
-          {voice.state === 'speaking' ? 'Interrupt' : 'Speak'}
-        </button>
-        {voice.voiceStatus === 'recognition_unavailable' && (
-          <button type="button" onClick={() => void voice.retryListening()}>Retry</button>
-        )}
-      </div>
+      <VoiceBar
+        voiceState={voiceState}
+        voiceStatus={voice.voiceStatus}
+        voiceMessage={voiceMessage}
+        isSpeaking={voice.state === 'speaking'}
+        onSpeak={handleSpeak}
+        onRetry={handleRetry}
+      />
 
-      <div className={styles.experienceControls} aria-label="Experience controls">
-        <button type="button" onClick={() => voice.setKeyboardOpen(!voice.keyboardOpen)} aria-expanded={voice.keyboardOpen}>Keyboard</button>
-        <button type="button" onClick={() => voice.setMuted(!voice.muted)} aria-pressed={voice.muted}>{voice.muted ? 'Unmute' : 'Mute'}</button>
-        <button type="button" onClick={() => voice.setCaptions(!voice.captions)} aria-pressed={voice.captions}>Captions</button>
-        <button type="button" onClick={() => setReducedMotionOverride(!reducedMotionOverride)} aria-pressed={reducedMotionOverride}>Simplify</button>
-        <button type="button" onClick={() => setHighContrast((value) => !value)} aria-pressed={highContrast}>Contrast</button>
-        <button type="button" onClick={voice.repeat} disabled={!voice.response}>Repeat</button>
-        <button type="button" onClick={exitCore} disabled={mode === 'avatar'}>Exit</button>
-      </div>
+      <ExperienceControls
+        keyboardOpen={voice.keyboardOpen}
+        muted={voice.muted}
+        captions={voice.captions}
+        reducedMotion={reducedMotionOverride}
+        highContrast={highContrast}
+        canExit={mode !== 'avatar'}
+        canRepeat={Boolean(voice.response)}
+        onKeyboard={handleKeyboardToggle}
+        onMute={handleMuteToggle}
+        onCaptions={handleCaptionsToggle}
+        onReducedMotion={handleReducedMotionToggle}
+        onContrast={handleContrastToggle}
+        onRepeat={handleRepeat}
+        onExit={handleExit}
+      />
 
       {voice.keyboardOpen && (
         <form className={styles.keyboardFallback} onSubmit={submitKeyboard}>

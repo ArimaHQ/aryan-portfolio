@@ -61,7 +61,7 @@ const connectGateways = [
 const contactLinks = [
   ["Email", "aryan.hd@outlook.com", "mailto:aryan.hd@outlook.com"],
   ["LinkedIn", "Public profile", "#traditional-contact"],
-  ["GitHub", "github.com/arima7576", "https://github.com/arima7576"],
+  ["GitHub", "github.com/ArimaHQ", "https://github.com/ArimaHQ"],
   ["Company Profile (PDF)", "PDF forthcoming", "#traditional-contact"],
   ["Resume / CV (PDF)", "PDF forthcoming", "#traditional-contact"],
 ];
@@ -198,9 +198,6 @@ export function PhaseOneFilm() {
             const point = self.progress * 828;
             const active = point < 58 ? ["arrival", "Arrival"] : point < 108 ? ["data-universe", "Financial data universe"] : point < 200 ? ["financial-district", "Financial district"] : point < 242 ? ["hq-entrance", "Arima HQ entrance"] : point < 292 ? ["hq-hall", "Arima HQ hall"] : point < 350 ? ["divisions", "Three divisions"] : point < 500 ? ["founder", "Founder transition"] : point < 680 ? ["projects", "Project systems"] : ["connect", "Final transition"];
             setFilmDebug({ label: active[0], progress: self.progress, scene: active[1] });
-            const visibleText = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-film-text]") ?? []).filter((node) => Number.parseFloat(getComputedStyle(node).opacity) > 0.05).map((node) => node.id || node.dataset.filmText);
-            const visiblePortals = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-film-portal]") ?? []).filter((node) => Number.parseFloat(getComputedStyle(node).opacity) > 0.05).map((node) => node.id || node.dataset.filmPortal);
-            console.debug("[PhaseOneFilm]", { scene: active[1], time: timeline.time(), text: visibleText, portals: visiblePortals });
             const scheduled = [["film-hq-entrance", 200], ["film-hq-identity", 260], ["film-division-1", 304], ["film-division-2", 307], ["film-division-3", 310], ["film-founder-identity", 372]] as const;
             scheduled.forEach(([id, start]) => {
               const node = root.current?.querySelector<HTMLElement>(`#${id}`);
@@ -663,7 +660,7 @@ export function PhaseOneFilm() {
       <section id="standard-portfolio-lab" className="standard-section"><span>Portfolio Lab</span><h2>Founder-funded internal research.</h2><p>The Portfolio Lab does not represent externally managed client assets. It is used for allocation, risk and performance research.</p></section>
       <section id="standard-founder" className="standard-section"><span>Founder</span><h2>Aryan Heidari</h2><p>Finance, quantitative research and technology experience brought together through Arima Finance.</p></section>
       <section id="standard-research" className="standard-section"><span>Research</span><h2>Financial research and advisory work.</h2><p>Selected work includes founder-led, collaborative and confidential assignments. Certain details are intentionally withheld.</p></section>
-      <section id="standard-contact" className="standard-section standard-contact"><span>Contact</span><h2>Start a conversation.</h2><a href="mailto:aryan.hd@outlook.com">aryan.hd@outlook.com</a><a href="https://github.com/arima7576" target="_blank" rel="noopener">github.com/arima7576</a></section>
+      <section id="standard-contact" className="standard-section standard-contact"><span>Contact</span><h2>Start a conversation.</h2><a href="mailto:aryan.hd@outlook.com">aryan.hd@outlook.com</a><a href="https://github.com/ArimaHQ" target="_blank" rel="noopener">github.com/ArimaHQ</a></section>
     </section>}
   </main>;
 }

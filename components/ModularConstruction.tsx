@@ -1,1 +1,0 @@
-export function ModularConstruction(){return <div className="modular-construction" aria-hidden="true">{Array.from({length:18},(_,i)=><span key={i} style={{"--i":i} as React.CSSProperties}><i/></span>)}<div className="construction-core">AF</div></div>}

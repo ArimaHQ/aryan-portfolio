@@ -15,6 +15,7 @@ export function PageTransition({ children, variant = 'fade' }: PageTransitionPro
       animate="animate"
       exit="exit"
       className="min-h-screen"
+      data-transition={variant}
     >
       {children}
     </motion.div>

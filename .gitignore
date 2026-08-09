@@ -4,8 +4,12 @@ Thumbs.db
 *.tmp
 .next/
 out/
+.open-next/
+.wrangler/
 node_modules/
 *.tsbuildinfo
 test-results/
 playwright-report/
 .env.local
+.dev.vars*
+!.dev.vars.example

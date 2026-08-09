@@ -117,13 +117,6 @@ export type PageMeta = {
 };
 
 // ─── Component Props ───
-export type GlassCardProps = {
-  children: React.ReactNode;
-  className?: string;
-  intensity?: 'low' | 'medium' | 'high';
-  hoverEffect?: boolean;
-};
-
 export type AnimatedButtonProps = {
   children: React.ReactNode;
   onClick?: () => void;
@@ -150,21 +143,6 @@ export type LoadingScreenProps = {
 export type PageTransitionProps = {
   children: React.ReactNode;
   variant?: AnimationVariant;
-};
-
-// ─── Cinematic ───
-export type CinematicChapter = {
-  id: string;
-  title: string;
-  duration: number;
-  scene: React.ComponentType<unknown>;
-};
-
-export type CinematicState = {
-  currentChapter: number;
-  isPlaying: boolean;
-  progress: number;
-  isComplete: boolean;
 };
 
 // ─── Cinematic Chapters ───

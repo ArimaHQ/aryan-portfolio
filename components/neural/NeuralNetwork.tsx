@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import type { CSSProperties } from 'react';
 import type { ActiveChamber, AnimationPolicy } from '@/types/experience';
 import { chamberLabels } from '@/data/experience-demo';
@@ -45,7 +46,7 @@ type Props = {
   onNavigate: (chamber: ActiveChamber) => void;
 };
 
-export function NeuralNetwork({ activeChamber, policy, onNavigate }: Props) {
+function NeuralNetworkComponent({ activeChamber, policy, onNavigate }: Props) {
   return (
     <div className={styles.network} data-quality={policy.quality} aria-label="Arima intelligence pathways">
       <svg className={styles.networkLines} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -102,3 +103,6 @@ export function NeuralNetwork({ activeChamber, policy, onNavigate }: Props) {
     </div>
   );
 }
+
+// Memoize to prevent unnecessary re-renders
+export const NeuralNetwork = memo(NeuralNetworkComponent);

@@ -5,10 +5,9 @@ import { motion } from 'framer-motion';
 
 interface AISentinelProps {
   className?: string;
-  color?: string;
 }
 
-export function AISentinel({ className = '', color = '#418cff' }: AISentinelProps) {
+export function AISentinel({ className = '' }: AISentinelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headAngle = useRef(0);
 

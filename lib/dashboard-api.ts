@@ -1,9 +1,4 @@
-import { AuthApiError, authApi, getAccessToken } from '@/lib/auth-api';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-const DASHBOARD_PATH = '/api/v1/dashboard/summary';
-
-type JsonRecord = Record<string, unknown>;
+import { ApiClientError, apiClient } from '@/lib/api-client';
 
 export type WorkspaceDashboardSummary = {
   totalProjects: number;
@@ -27,42 +22,24 @@ export type WorkspaceDashboardSummary = {
   rangeEnd: string;
 };
 
-const asRecord = (value: unknown): JsonRecord | null => (
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as JsonRecord
-    : null
-);
-
-const correlationId = () => (
-  globalThis.crypto?.randomUUID?.()
-  ?? `dashboard-${Date.now()}-${Math.random().toString(16).slice(2)}`
-);
-
-const apiUrl = () => {
-  if (!API_URL) {
-    throw new AuthApiError('Arima API URL is not configured.');
-  }
-  return `${API_URL}${DASHBOARD_PATH}`;
-};
-
 const requiredNumber = (value: unknown, field: string) => {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new AuthApiError(`The dashboard response contains an invalid ${field}.`);
+    throw new ApiClientError(`The dashboard response contains an invalid ${field}.`);
   }
   return value;
 };
 
 const requiredString = (value: unknown, field: string) => {
   if (typeof value !== 'string' || !value) {
-    throw new AuthApiError(`The dashboard response contains an invalid ${field}.`);
+    throw new ApiClientError(`The dashboard response contains an invalid ${field}.`);
   }
   return value;
 };
 
 const countMap = (value: unknown, field: string): Record<string, number> => {
-  const record = asRecord(value);
+  const record = value as Record<string, unknown> | null;
   if (!record) {
-    throw new AuthApiError(`The dashboard response contains an invalid ${field}.`);
+    throw new ApiClientError(`The dashboard response contains an invalid ${field}.`);
   }
   return Object.fromEntries(
     Object.entries(record).map(([key, count]) => [
@@ -72,12 +49,13 @@ const countMap = (value: unknown, field: string): Record<string, number> => {
   );
 };
 
-const unwrap = (value: unknown): JsonRecord => {
-  const record = asRecord(value);
+const unwrap = (value: unknown): Record<string, unknown> => {
+  const record = value as Record<string, unknown> | null;
   if (!record) {
-    throw new AuthApiError('The dashboard service returned an invalid response.');
+    throw new ApiClientError('The dashboard service returned an invalid response.');
   }
-  return asRecord(record.data) ?? record;
+  const data = record.data as Record<string, unknown> | null;
+  return data ?? record;
 };
 
 const parseDashboardSummary = (payload: unknown): WorkspaceDashboardSummary => {
@@ -108,50 +86,20 @@ const parseDashboardSummary = (payload: unknown): WorkspaceDashboardSummary => {
   };
 };
 
-const responseMessage = async (response: Response) => {
-  try {
-    const payload = asRecord(await response.json());
-    const detail = payload?.detail;
-    if (typeof detail === 'string' && detail) return detail;
-    if (typeof payload?.message === 'string' && payload.message) return payload.message;
-  } catch {
-    // Keep the caller-facing error stable when a proxy returns a non-JSON body.
-  }
-  return 'Unable to load your workspace dashboard.';
-};
-
-const fetchSummary = async (token: string) => {
-  try {
-    return await fetch(apiUrl(), {
-      method: 'GET',
-      cache: 'no-store',
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        'X-Correlation-ID': correlationId(),
-      },
-    });
-  } catch {
-    throw new AuthApiError('Unable to reach the dashboard service. Please try again.');
-  }
-};
-
-const activeAccessToken = async () => {
-  const existing = getAccessToken();
-  if (existing) return existing;
-  const session = await authApi.refresh();
-  return session.accessToken;
-};
-
 export async function getWorkspaceDashboardSummary(): Promise<WorkspaceDashboardSummary> {
-  let response = await fetchSummary(await activeAccessToken());
-  if (response.status === 401) {
-    const refreshed = await authApi.refresh();
-    response = await fetchSummary(refreshed.accessToken);
+  try {
+    const payload = await apiClient<unknown>('/api/v1/dashboard/summary', {
+      method: 'GET',
+    });
+    return parseDashboardSummary(payload);
+  } catch (error) {
+    if (error instanceof ApiClientError) throw error;
+    if (error instanceof Error) {
+      if (error.message.includes('timed out') || error.message.includes('Unable to reach')) {
+        throw new ApiClientError('Unable to reach the dashboard service. Please try again.');
+      }
+      throw error;
+    }
+    throw new ApiClientError('Unable to load your workspace dashboard.');
   }
-  if (!response.ok) {
-    throw new AuthApiError(await responseMessage(response), response.status);
-  }
-  return parseDashboardSummary(await response.json());
 }

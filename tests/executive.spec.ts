@@ -109,7 +109,9 @@ async function signIn(page: import('@playwright/test').Page, returnPath = '/exec
   await page.getByLabel('Email').fill('executive@example.com');
   await page.getByLabel('Password').fill('Secure-test-password1!');
   await page.getByRole('button', { name: 'Sign In' }).click();
-  await expect(page).toHaveURL(new RegExp(returnPath.replace('?', '\\?')));
+  const [pathname, query] = returnPath.split('?');
+  const normalizedPath = `${pathname.endsWith('/') ? pathname : `${pathname}/`}${query ? `?${query}` : ''}`;
+  await expect(page).toHaveURL(new RegExp(normalizedPath.replace('?', '\\?')));
 }
 
 test('enters and exits the neural core with keyboard support', async ({ page }) => {
@@ -157,7 +159,7 @@ test('falls back to keyboard mode after a recognition network error', async ({ p
   });
   await signIn(page);
   await page.getByRole('button', { name: 'Speak' }).click();
-  await expect(page.getByText('Recognition service unavailable')).toBeVisible();
+  await expect(page.getByText('Recognition service unavailable', { exact: true })).toBeVisible();
   await expect(page.getByLabel(/Keyboard fallback/)).toBeVisible();
 });
 

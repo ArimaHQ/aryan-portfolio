@@ -53,6 +53,13 @@ type VoiceControllerOptions = {
     response: VoiceGatewayResponse,
   ) => boolean;
   onStateChange?: (state: VoiceState) => void;
+  /**
+   * When true (default), the voice session is created immediately on mount.
+   * Pass false until auth is ready to avoid firing the session request before
+   * the access token is available, which would produce a 401 and fall back
+   * to demo mode.
+   */
+  authReady?: boolean;
 };
 
 const recoveryCopy: Record<string, { message: string; status: VoiceStatus }> = {
@@ -74,7 +81,13 @@ const recoveryCopy: Record<string, { message: string; status: VoiceStatus }> = {
   },
 };
 
-export function useVoiceController(options: VoiceControllerOptions = {}) {
+export function useVoiceController({
+  onPanel,
+  onVoiceResponse,
+  onNavigation,
+  onStateChange,
+  authReady = true,
+}: VoiceControllerOptions = {}) {
   const router = useRouter();
   const api = useRef(new VoiceApiClient());
   const recognition = useRef<BrowserRecognition | null>(null);
@@ -122,10 +135,10 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
   }, [clearRecoveryTimer]);
 
   const navigate = useCallback((result: VoiceGatewayResponse) => {
-    options.onPanel?.(result.panel_action ?? null);
+    onPanel?.(result.panel_action ?? null);
     const action = result.navigation_action;
     if (!action) return;
-    if (options.onNavigation?.(action, result)) return;
+    if (onNavigation?.(action, result)) return;
     if (action.path === 'back') {
       router.back();
       return;
@@ -134,7 +147,7 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
       ? action.path + '#' + encodeURIComponent(action.focus)
       : action.path;
     window.setTimeout(() => router.push(destination), 300);
-  }, [options, router]);
+  }, [onNavigation, onPanel, router]);
 
   const stopSpeech = useCallback(() => {
     speechWasCancelled.current = true;
@@ -201,7 +214,7 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
       setMode(api.current.mode);
       setResponse(result.visual_response_text);
       lastResponse.current = result.response_text;
-      options.onVoiceResponse?.(result);
+      onVoiceResponse?.(result);
       if (result.approval_request) {
         setState('awaiting_approval');
         setVoiceStatus('voice_ready');
@@ -215,7 +228,7 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
       setState('warning');
       settle(800);
     }
-  }, [clearRecoveryTimer, navigate, options, settle, speak]);
+  }, [clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
 
   const handleRecognitionFailure = useCallback((code: string) => {
     const normalized = code.toLowerCase();
@@ -357,11 +370,12 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
   }, [speak]);
 
   useEffect(() => {
-    options.onStateChange?.(state);
-  }, [options, state]);
+    onStateChange?.(state);
+  }, [onStateChange, state]);
 
   useEffect(() => {
     let active = true;
+    if (!authReady) return undefined;
     void api.current.createSession().then(() => {
       if (active) setMode(api.current.mode);
     });
@@ -376,7 +390,7 @@ export function useVoiceController(options: VoiceControllerOptions = {}) {
       stopSpeech();
       clearRecoveryTimer();
     };
-  }, [clearRecoveryTimer, stopSpeech]);
+  }, [authReady, clearRecoveryTimer, stopSpeech]);
 
   return {
     state,

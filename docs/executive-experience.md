@@ -9,7 +9,8 @@ visual context.
 
 - `/executive` — protected primary voice experience
 - `/portfolio-lab` — existing Portfolio Lab with the reusable Arima Voice Dock
-- `/quant-research` — mock-labelled research dashboard with Voice Dock
+- `/quant-research` — protected, evidence-only Quant Trading Lab; it never
+  invents market, ranking, backtest or execution results
 - `/growth-studio` — protected, private mock review workflow
 
 ## Browser speech
@@ -53,7 +54,9 @@ does not read browser storage.
 | `NEXT_PUBLIC_ARIMA_DEMO_MODE` | Force deterministic demo behavior |
 | `NEXT_PUBLIC_ARIMA_VOICE_ENABLED` | Disable microphone UI when `false` |
 
-Safe static-export defaults require no variables.
+The OpenNext Worker requires `NEXT_PUBLIC_API_URL` at build time so its
+same-origin `/api/v1/*` rewrite can target Railway. It is a public origin, not
+a secret.
 
 ## Local use
 
@@ -67,6 +70,7 @@ The protected route is a navigation guard, not an authorization boundary; the
 backend remains responsible for validating every bearer token, session, CSRF
 token, permission and workspace boundary. Growth actions change local mock
 state only; they never publish, email, post, or call an external service.
-Static export and Cloudflare compatibility are preserved because browser calls
-the configured backend origin directly; that origin must allow the deployed
-frontend origin with credentialed CORS.
+Cloudflare compatibility is provided by OpenNext on the existing Worker. Browser
+requests use the same-origin `/api/v1/*` route, which the Worker rewrites to
+the configured backend origin; the backend must still allow the deployed
+frontend origin for direct integrations such as the Voice Gateway.
