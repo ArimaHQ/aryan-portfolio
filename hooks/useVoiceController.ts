@@ -378,6 +378,12 @@ export function useVoiceController({
     if (!authReady) return undefined;
     void api.current.createSession().then(() => {
       if (active) setMode(api.current.mode);
+    }).catch((caught) => {
+      if (!active) return;
+      setError(caught instanceof Error ? caught.message : 'Voice session setup failed.');
+      setVoiceStatus('keyboard_mode');
+      setKeyboardOpen(true);
+      setState('warning');
     });
     const supportTimer = window.setTimeout(() => {
       const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;

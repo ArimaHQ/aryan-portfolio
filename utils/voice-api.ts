@@ -18,7 +18,26 @@ const FORCE_DEMO = process.env.NEXT_PUBLIC_ARIMA_DEMO_MODE === 'true';
 const VOICE_ENABLED = process.env.NEXT_PUBLIC_ARIMA_VOICE_ENABLED !== 'false';
 const REQUEST_TIMEOUT_MS = 8_000;
 
-export const initialVoiceMode: VoiceMode = FORCE_DEMO || !API_URL ? 'demo' : 'live';
+export type VoiceApiErrorKind =
+  | 'authentication'
+  | 'authorization'
+  | 'server'
+  | 'network'
+  | 'configuration';
+
+export class VoiceApiError extends Error {
+  readonly kind: VoiceApiErrorKind;
+  readonly status?: number;
+
+  constructor(message: string, kind: VoiceApiErrorKind, status?: number) {
+    super(message);
+    this.name = 'VoiceApiError';
+    this.kind = kind;
+    this.status = status;
+  }
+}
+
+export const initialVoiceMode: VoiceMode = FORCE_DEMO ? 'demo' : 'live';
 
 const command = (transcript: string): {
   text: string;
@@ -207,7 +226,9 @@ function demoExperienceEvents(
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!API_URL) throw new Error('Arima API URL is not configured');
+  if (!API_URL) {
+    throw new VoiceApiError('Arima API URL is not configured.', 'configuration');
+  }
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -235,9 +256,28 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
     }
     if (!response.ok) {
-      throw new Error(`Voice API returned ${response.status}`);
+      let detail: string | undefined;
+      try {
+        const body = await response.clone().json() as { detail?: unknown };
+        if (typeof body.detail === 'string') detail = body.detail;
+      } catch {
+        // Keep provider/backend response details out of the browser error when absent.
+      }
+      const message = detail || `Voice API returned ${response.status}.`;
+      const kind: VoiceApiErrorKind = response.status === 401
+        ? 'authentication'
+        : response.status === 403 || response.status < 500
+          ? 'authorization'
+          : 'server';
+      throw new VoiceApiError(message, kind, response.status);
     }
     return await response.json() as T;
+  } catch (error) {
+    if (error instanceof VoiceApiError) throw error;
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new VoiceApiError('The Arima voice service timed out. Please try again.', 'network');
+    }
+    throw new VoiceApiError('Unable to reach the Arima voice service. Please try again.', 'network');
   } finally {
     window.clearTimeout(timeout);
   }
@@ -312,35 +352,24 @@ export class VoiceApiClient {
       this.session = demoSession();
       return this.session;
     }
-    try {
-      this.session = await request<VoiceSession>('/api/v1/voice/sessions', {
-        method: 'POST',
-        body: JSON.stringify({
-          language: 'en',
-          locale: navigator.language || 'en-GB',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-        }),
-      });
-      return this.session;
-    } catch {
-      this.currentMode = 'demo';
-      this.session = demoSession();
-      return this.session;
-    }
+    this.session = await request<VoiceSession>('/api/v1/voice/sessions', {
+      method: 'POST',
+      body: JSON.stringify({
+        language: navigator.language || 'en-GB',
+        locale: navigator.language || 'en-GB',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      }),
+    });
+    return this.session;
   }
 
   async submitTranscript(transcript: string): Promise<VoiceGatewayResponse> {
     const session = this.session ?? await this.createSession();
     if (this.currentMode === 'demo') return demoResponse(session.session_id, transcript);
-    try {
-      return await request<VoiceGatewayResponse>(
-        `/api/v1/voice/sessions/${session.session_id}/transcript`,
-        { method: 'POST', body: JSON.stringify({ transcript }) },
-      );
-    } catch {
-      this.currentMode = 'demo';
-      return demoResponse(session.session_id, transcript);
-    }
+    return request<VoiceGatewayResponse>(
+      `/api/v1/voice/sessions/${session.session_id}/transcript`,
+      { method: 'POST', body: JSON.stringify({ transcript }) },
+    );
   }
 
   async interrupt(): Promise<void> {
