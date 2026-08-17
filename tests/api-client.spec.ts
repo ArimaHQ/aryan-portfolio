@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 
 type AuthState = {
+  csrfCalls: number;
   refreshCalls: number;
+  refreshCsrfHeaders: string[];
   projectListCalls: number;
   createHeaders: Record<string, string> | null;
 };
@@ -11,7 +13,9 @@ async function mockRecoverableApiSession(
   options: { keepProjectRequestsUnauthorized?: boolean } = {},
 ): Promise<AuthState> {
   const state: AuthState = {
+    csrfCalls: 0,
     refreshCalls: 0,
+    refreshCsrfHeaders: [],
     projectListCalls: 0,
     createHeaders: null,
   };
@@ -21,6 +25,7 @@ async function mockRecoverableApiSession(
     const path = new URL(request.url()).pathname;
 
     if (path.endsWith('/csrf')) {
+      state.csrfCalls += 1;
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ csrf_token: 'api-client-csrf-token' }),
@@ -30,10 +35,12 @@ async function mockRecoverableApiSession(
 
     if (path.endsWith('/refresh')) {
       state.refreshCalls += 1;
+      state.refreshCsrfHeaders.push(request.headers()['x-csrf-token'] ?? '');
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
           access_token: state.refreshCalls === 1 ? 'bootstrap-token' : 'rotated-token',
+          csrf_token: `refreshed-csrf-token-${state.refreshCalls}`,
           token_type: 'bearer',
           expires_in: 900,
           user: {
@@ -109,13 +116,18 @@ test('refreshes one expired protected request and sends CSRF on a mutation', asy
   await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
   await expect.poll(() => state.projectListCalls).toBe(2);
   await expect.poll(() => state.refreshCalls).toBe(2);
+  expect(state.csrfCalls).toBe(1);
+  expect(state.refreshCsrfHeaders).toEqual([
+    'api-client-csrf-token',
+    'refreshed-csrf-token-1',
+  ]);
 
   await page.getByRole('button', { name: 'New project' }).click();
   await page.getByLabel('Name').fill('Secure project');
   await page.getByRole('button', { name: 'Create project' }).click();
 
   await expect.poll(() => state.createHeaders).not.toBeNull();
-  expect(state.createHeaders?.['x-csrf-token']).toBe('api-client-csrf-token');
+  expect(state.createHeaders?.['x-csrf-token']).toBe('refreshed-csrf-token-2');
   expect(state.createHeaders?.authorization).toBe('Bearer rotated-token');
 });
 
