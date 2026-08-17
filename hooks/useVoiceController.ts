@@ -10,7 +10,11 @@ import type {
   VoiceStatus,
   VoiceNavigationAction,
 } from '@/types/voice';
-import { initialVoiceMode, VoiceApiClient } from '@/utils/voice-api';
+import {
+  initialVoiceMode,
+  VoiceApiClient,
+  VoiceApiError,
+} from '@/utils/voice-api';
 
 type RecognitionResult = {
   isFinal: boolean;
@@ -95,6 +99,7 @@ export function useVoiceController({
   const recoveryTimer = useRef<number | null>(null);
   const speechPulseTimer = useRef<number | null>(null);
   const speechWasCancelled = useRef(false);
+  const submissionInFlight = useRef(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [mode, setMode] = useState<VoiceMode>(initialVoiceMode);
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('voice_ready');
@@ -202,7 +207,7 @@ export function useVoiceController({
 
   const submitTranscript = useCallback(async (value: string) => {
     const finalTranscript = value.trim();
-    if (!finalTranscript) return;
+    if (!finalTranscript || submissionInFlight.current) return;
     clearRecoveryTimer();
     setTranscript(finalTranscript);
     setPartialTranscript('');
@@ -210,6 +215,7 @@ export function useVoiceController({
     setVoiceStatus('idle');
     setState('thinking');
     try {
+      submissionInFlight.current = true;
       const result = await api.current.submitTranscript(finalTranscript);
       setMode(api.current.mode);
       setResponse(result.visual_response_text);
@@ -222,11 +228,17 @@ export function useVoiceController({
       navigate(result);
       if (!result.approval_request) speak(result.response_text);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Voice request failed.');
+      setError(
+        caught instanceof VoiceApiError && caught.kind === 'busy'
+          ? 'Arima is still processing your previous request.'
+          : caught instanceof Error ? caught.message : 'Voice request failed.',
+      );
       setVoiceStatus('keyboard_mode');
       setKeyboardOpen(true);
       setState('warning');
       settle(800);
+    } finally {
+      submissionInFlight.current = false;
     }
   }, [clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
 

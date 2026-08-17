@@ -21,6 +21,7 @@ const REQUEST_TIMEOUT_MS = 8_000;
 export type VoiceApiErrorKind =
   | 'authentication'
   | 'authorization'
+  | 'busy'
   | 'server'
   | 'network'
   | 'configuration';
@@ -266,6 +267,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       const message = detail || `Voice API returned ${response.status}.`;
       const kind: VoiceApiErrorKind = response.status === 401
         ? 'authentication'
+        : response.status === 409
+          ? 'busy'
         : response.status === 403 || response.status < 500
           ? 'authorization'
           : 'server';
