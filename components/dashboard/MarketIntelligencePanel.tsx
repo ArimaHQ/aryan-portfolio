@@ -2,19 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  getPortfolioRisk,
-  getTradePermission,
   getLatestNews,
-  type PortfolioRisk,
-  type TradePermission,
   type NewsItem,
 } from "@/lib/intelligence-api";
 
 const POLL_INTERVAL_MS = 60_000;
 
 export default function MarketIntelligencePanel() {
-  const [risk, setRisk] = useState<PortfolioRisk | null>(null);
-  const [trade, setTrade] = useState<TradePermission | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,14 +17,7 @@ export default function MarketIntelligencePanel() {
     setIsLoading(true);
     setError(null);
     try {
-      const [riskData, tradeData, newsData] = await Promise.all([
-        getPortfolioRisk(),
-        getTradePermission(),
-        getLatestNews(),
-      ]);
-      setRisk(riskData);
-      setTrade(tradeData);
-      setNews(newsData);
+      setNews(await getLatestNews());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load market intelligence.");
     } finally {
@@ -53,36 +40,23 @@ export default function MarketIntelligencePanel() {
   return (
     <section className="lab-panel">
       <p className="lab-eyebrow">ARIMA INTELLIGENCE</p>
-      <h2>Live Market Risk</h2>
+      <h2>Portfolio Risk</h2>
+      <p className="lab-muted">
+        Portfolio risk and trade-permission state are unavailable because Arima
+        Executive OS does not persist portfolio data.
+      </p>
 
-      {isLoading && !risk && (
+      <br />
+
+      <h2>Latest News</h2>
+
+      {isLoading && (
         <p className="lab-muted">Loading market intelligence…</p>
       )}
 
       {error && (
         <p className="lab-error-text">{error}</p>
       )}
-
-      {risk && (
-        <div className="holding-strip">
-          <div>
-            <span>Portfolio Status</span>
-            <strong>{risk.portfolio_control.portfolio_status}</strong>
-          </div>
-          <div>
-            <span>Risk Limit</span>
-            <strong>{risk.portfolio_control.allowed_risk_percent}%</strong>
-          </div>
-          <div>
-            <span>Trade Permission</span>
-            <strong>{trade?.allowed ? "ALLOWED" : "BLOCKED"}</strong>
-          </div>
-        </div>
-      )}
-
-      <br />
-
-      <h2>Latest News</h2>
 
       {news.length === 0 && !isLoading && !error && (
         <p className="lab-muted">No news available.</p>
