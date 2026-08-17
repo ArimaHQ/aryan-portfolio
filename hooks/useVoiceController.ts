@@ -95,6 +95,7 @@ export function useVoiceController({
   const router = useRouter();
   const api = useRef(new VoiceApiClient());
   const recognition = useRef<BrowserRecognition | null>(null);
+  const recognitionAttempt = useRef<symbol | null>(null);
   const lastResponse = useRef('');
   const recoveryTimer = useRef<number | null>(null);
   const speechPulseTimer = useRef<number | null>(null);
@@ -258,6 +259,7 @@ export function useVoiceController({
   }, [settle]);
 
   const startListening = useCallback(async () => {
+    if (recognition.current !== null || recognitionAttempt.current !== null) return;
     if (!api.current.enabled) {
       setError('Voice is disabled by configuration. Keyboard fallback remains available.');
       setVoiceStatus('keyboard_mode');
@@ -279,6 +281,8 @@ export function useVoiceController({
       setKeyboardOpen(true);
       return;
     }
+    const attempt = Symbol('voice-recognition');
+    recognitionAttempt.current = attempt;
     clearRecoveryTimer();
     setState('requesting_microphone');
     setVoiceStatus('requesting_microphone');
@@ -288,6 +292,8 @@ export function useVoiceController({
       stream.getTracks().forEach((track) => track.stop());
       setMicrophonePermission('granted');
     } catch {
+      if (recognitionAttempt.current !== attempt) return;
+      recognitionAttempt.current = null;
       setMicrophonePermission('denied');
       setError('Microphone blocked. Keyboard mode is active; update browser permissions to retry.');
       setVoiceStatus('microphone_blocked');
@@ -296,11 +302,14 @@ export function useVoiceController({
       settle(700);
       return;
     }
+    if (recognitionAttempt.current !== attempt) return;
     const recognizer = new Recognition();
+    let finalSubmitted = false;
     recognizer.continuous = false;
     recognizer.interimResults = true;
     recognizer.lang = navigator.language || 'en-GB';
     recognizer.onresult = (event) => {
+      if (recognition.current !== recognizer || finalSubmitted) return;
       let partial = '';
       let final = '';
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -312,25 +321,31 @@ export function useVoiceController({
         setState('speech_detected');
         setPartialTranscript(partial);
       }
-      if (final) void submitTranscript(final);
+      if (final) {
+        finalSubmitted = true;
+        void submitTranscript(final);
+      }
     };
     recognizer.onerror = (event) => {
+      if (recognition.current !== recognizer) return;
       recognition.current = null;
       handleRecognitionFailure(event.error);
     };
     recognizer.onend = () => {
+      if (recognition.current !== recognizer) return;
       recognition.current = null;
       setState((current) => (
         current === 'listening' || current === 'speech_detected' ? 'idle' : current
       ));
     };
+    recognitionAttempt.current = null;
     recognition.current = recognizer;
     try {
       recognizer.start();
       setState('listening');
       setVoiceStatus('listening_restored');
     } catch {
-      recognition.current = null;
+      if (recognition.current === recognizer) recognition.current = null;
       handleRecognitionFailure('network');
     }
   }, [clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
@@ -342,14 +357,17 @@ export function useVoiceController({
   }, [startListening]);
 
   const stopListening = useCallback(() => {
-    recognition.current?.stop();
+    recognitionAttempt.current = null;
+    const activeRecognition = recognition.current;
     recognition.current = null;
+    activeRecognition?.stop();
     setPartialTranscript('');
     setState('idle');
     setVoiceStatus('voice_ready');
   }, []);
 
   const interrupt = useCallback(async () => {
+    recognitionAttempt.current = null;
     recognition.current?.abort();
     recognition.current = null;
     stopSpeech();
@@ -364,6 +382,7 @@ export function useVoiceController({
   }, [settle, stopSpeech]);
 
   const cancel = useCallback(async () => {
+    recognitionAttempt.current = null;
     recognition.current?.abort();
     recognition.current = null;
     stopSpeech();
@@ -404,7 +423,9 @@ export function useVoiceController({
     return () => {
       active = false;
       window.clearTimeout(supportTimer);
+      recognitionAttempt.current = null;
       recognition.current?.abort();
+      recognition.current = null;
       stopSpeech();
       clearRecoveryTimer();
     };

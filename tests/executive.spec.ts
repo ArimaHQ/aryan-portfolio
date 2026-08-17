@@ -163,6 +163,73 @@ test('falls back to keyboard mode after a recognition network error', async ({ p
   await expect(page.getByLabel(/Keyboard fallback/)).toBeVisible();
 });
 
+test('submits only once when recognition emits repeated final results', async ({ page }) => {
+  let transcriptRequests = 0;
+  await page.route('**/api/v1/voice/sessions', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-duplicate-final',
+        user_id: 'test-user',
+        conversation_id: 'conversation-authorized-1',
+        correlation_id: 'corr-duplicate-final',
+        state: 'idle',
+        language: 'en-US',
+        locale: 'en-US',
+        timezone: 'UTC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
+  await page.route('**/api/v1/voice/sessions/voice-session-duplicate-final/transcript', async (route) => {
+    transcriptRequests += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-duplicate-final',
+        correlation_id: 'corr-duplicate-final',
+        state: 'completed',
+        transcript: 'What is your risk management framework?',
+        response_text: 'Risk controls are active.',
+        visual_response_text: 'Risk controls are active.',
+        events: [],
+        demo: false,
+      }),
+    });
+  });
+  await page.addInitScript(() => {
+    class DuplicateFinalRecognition {
+      continuous = false;
+      interimResults = true;
+      lang = 'en-GB';
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: { error: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() {
+        const result = { resultIndex: 0, results: [{ isFinal: true, 0: { transcript: 'What is your risk management framework?' } }] };
+        window.setTimeout(() => this.onresult?.(result), 0);
+        window.setTimeout(() => this.onresult?.(result), 100);
+      }
+      stop() { this.onend?.(); }
+      abort() { this.onend?.(); }
+    }
+    Object.defineProperty(window, 'SpeechRecognition', { value: DuplicateFinalRecognition });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+    });
+  });
+  await signIn(page);
+  await page.getByRole('button', { name: 'Speak' }).click();
+  await expect.poll(() => transcriptRequests).toBe(1);
+  await page.waitForTimeout(250);
+  expect(transcriptRequests).toBe(1);
+});
+
 test('honours reduced motion through the simplify control', async ({ page }) => {
   await signIn(page);
   await page.getByRole('button', { name: 'Simplify' }).click();
