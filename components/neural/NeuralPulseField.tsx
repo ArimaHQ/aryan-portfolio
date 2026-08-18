@@ -371,6 +371,9 @@ function NeuralPulseFieldComponent({
       const visual = visualRef.current;
       const intensity = stateIntensity(visual.avatarState);
       const speaking = visual.avatarState === 'speaking';
+      const amplitude = Number.isFinite(visual.amplitude)
+        ? clamp(visual.amplitude, 0, 1)
+        : 0;
       const thinking = visual.avatarState === 'thinking'
         || visual.avatarState === 'processing'
         || visual.avatarState === 'executing';
@@ -380,6 +383,22 @@ function NeuralPulseFieldComponent({
         : visual.arrival === 'spiral'
           ? 0.2 + entryProgress * 0.54
           : 1;
+      const drawSignalEllipse = (
+        radiusX: number,
+        radiusY: number,
+        rotation: number,
+      ) => {
+        if (
+          !Number.isFinite(radiusX)
+          || !Number.isFinite(radiusY)
+          || !Number.isFinite(rotation)
+          || radiusX < 0
+          || radiusY < 0
+        ) {
+          return;
+        }
+        context.ellipse(0, 0, radiusX, radiusY, rotation, 0, tau);
+      };
 
       context.save();
       context.globalCompositeOperation = 'lighter';
@@ -399,17 +418,17 @@ function NeuralPulseFieldComponent({
       }
 
       for (let index = 0; index < 4 + policy.depthLayers; index += 1) {
-        const pulse = speaking ? visual.amplitude * 0.42 + 0.12 : 0;
-        const radius = (base * (0.65 + index * 0.5) + Math.sin(movement * 1.8 + index) * 13) * seedScale;
+        const pulse = speaking ? amplitude * 0.42 + 0.12 : 0;
+        const ringBase = base * (0.65 + index * 0.5);
+        // The animated wobble is decorative, not a radius. On a small canvas
+        // it must not be allowed to exceed the ring's own positive base size.
+        const wobble = Math.sin(movement * 1.8 + index) * Math.min(13, ringBase * 0.85);
+        const radius = (ringBase + wobble) * seedScale;
         context.beginPath();
-        context.ellipse(
-          0,
-          0,
+        drawSignalEllipse(
           radius * (1.22 + pulse),
           radius * (0.4 + pulse * 0.3),
           movement * (index % 2 ? -0.42 : 0.34) + index * 0.52,
-          0,
-          tau,
         );
         context.strokeStyle = 'rgba(151, 232, 255, ' + (0.28 * intensity * arrivalProgress).toFixed(3) + ')';
         context.globalAlpha = clamp(0.44 - index * 0.035, 0.08, 0.44);
@@ -438,14 +457,10 @@ function NeuralPulseFieldComponent({
         for (let index = 0; index < ripples; index += 1) {
           const life = (movement * 1.22 + index / ripples) % 1;
           context.beginPath();
-          context.ellipse(
-            0,
-            0,
-            base * (1.52 + life * 3.8 + visual.amplitude * 0.8),
-            base * (0.55 + life * 1.34 + visual.amplitude * 0.38),
+          drawSignalEllipse(
+            base * (1.52 + life * 3.8 + amplitude * 0.8),
+            base * (0.55 + life * 1.34 + amplitude * 0.38),
             movement * 0.28,
-            0,
-            tau,
           );
           context.globalAlpha = (1 - life) * 0.54 * arrivalProgress;
           context.lineWidth = 1.3 + life;

@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+declare global {
+  interface Window {
+    __avatarInvalidEllipseRadii?: Array<[number, number]>;
+  }
+}
+
 async function mockAuthApi(page: import('@playwright/test').Page) {
   let signedIn = false;
   await page.route('**/api/v1/dashboard/summary', async (route) => {
@@ -121,6 +127,48 @@ test('enters and exits the neural core with keyboard support', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Executive Intelligence' })).toBeVisible({ timeout: 4_000 });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Enter Arima neural core' })).toBeVisible();
+});
+
+test('keeps avatar canvas ellipse radii valid during a minimal-size arrival frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    const ellipse = CanvasRenderingContext2D.prototype.ellipse;
+    const originalRect = HTMLCanvasElement.prototype.getBoundingClientRect;
+    const invalidRadii: Array<[number, number]> = [];
+
+    CanvasRenderingContext2D.prototype.ellipse = function (...args) {
+      const [, , radiusX, radiusY] = args;
+      if (
+        !Number.isFinite(radiusX)
+        || !Number.isFinite(radiusY)
+        || radiusX < 0
+        || radiusY < 0
+      ) {
+        invalidRadii.push([radiusX, radiusY]);
+        return;
+      }
+      return ellipse.apply(this, args);
+    };
+    HTMLCanvasElement.prototype.getBoundingClientRect = function () {
+      const rect = originalRect.call(this);
+      return this.getAttribute('aria-hidden') === 'true'
+        ? new DOMRect(rect.x, rect.y, 1, 1)
+        : rect;
+    };
+    window.requestAnimationFrame = (callback) => window.setTimeout(
+      () => callback(2_618),
+      0,
+    );
+    Object.defineProperty(window, '__avatarInvalidEllipseRadii', {
+      value: invalidRadii,
+    });
+  });
+
+  await signIn(page);
+  await expect(page.getByRole('button', { name: 'Enter Arima neural core' })).toBeVisible();
+  await page.waitForTimeout(100);
+  await expect.poll(() => page.evaluate(
+    () => window.__avatarInvalidEllipseRadii ?? [],
+  )).toEqual([]);
 });
 
 test('renders a direct chamber route after authenticated sign-in', async ({ page }) => {
