@@ -97,9 +97,11 @@ export function useVoiceController({
   const recognition = useRef<BrowserRecognition | null>(null);
   const recognitionAttempt = useRef<symbol | null>(null);
   const lastResponse = useRef('');
+  const mounted = useRef(true);
+  const operationGeneration = useRef(0);
+  const speechGeneration = useRef(0);
   const recoveryTimer = useRef<number | null>(null);
   const speechPulseTimer = useRef<number | null>(null);
-  const speechWasCancelled = useRef(false);
   const submissionInFlight = useRef(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [mode, setMode] = useState<VoiceMode>(initialVoiceMode);
@@ -156,7 +158,7 @@ export function useVoiceController({
   }, [onNavigation, onPanel, router]);
 
   const stopSpeech = useCallback(() => {
-    speechWasCancelled.current = true;
+    speechGeneration.current += 1;
     clearSpeechPulse();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
@@ -165,17 +167,19 @@ export function useVoiceController({
 
   const speak = useCallback((text: string) => {
     if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      setState('idle');
+      setState('completed');
       setVoiceStatus('voice_ready');
+      settle(1_100);
       return;
     }
     stopSpeech();
-    speechWasCancelled.current = false;
+    const generation = ++speechGeneration.current;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = navigator.language || 'en-GB';
     utterance.rate = 0.96;
     utterance.pitch = 0.92;
     utterance.onstart = () => {
+      if (generation !== speechGeneration.current || !mounted.current) return;
       setState('speaking');
       setVoiceStatus('voice_ready');
       let tick = 0;
@@ -185,22 +189,26 @@ export function useVoiceController({
       }, 130);
     };
     utterance.onend = () => {
+      if (generation !== speechGeneration.current || !mounted.current) return;
       clearSpeechPulse();
-      setState('idle');
+      setState('completed');
       setVoiceStatus('voice_ready');
+      settle(1_100);
     };
     utterance.onerror = (event) => {
+      if (generation !== speechGeneration.current || !mounted.current) return;
       clearSpeechPulse();
       const errorCode = (event as SpeechSynthesisErrorEvent).error;
-      if (speechWasCancelled.current || errorCode === 'interrupted' || errorCode === 'canceled') {
+      if (errorCode === 'interrupted' || errorCode === 'canceled') {
         setVoiceStatus('speech_playback_interrupted');
-        settle(180);
+        setState('interrupted');
+        settle(1_100);
         return;
       }
       setError('Browser speech playback was interrupted. You can continue by keyboard.');
       setVoiceStatus('keyboard_mode');
       setKeyboardOpen(true);
-      setState('warning');
+      setState('error');
       settle(700);
     };
     window.speechSynthesis.speak(utterance);
@@ -209,15 +217,24 @@ export function useVoiceController({
   const submitTranscript = useCallback(async (value: string) => {
     const finalTranscript = value.trim();
     if (!finalTranscript || submissionInFlight.current) return;
+    if (!authReady) {
+      setError('Sign in is required before using Arima voice.');
+      setVoiceStatus('authentication_required');
+      setKeyboardOpen(true);
+      setState('error');
+      return;
+    }
+    const generation = operationGeneration.current;
     clearRecoveryTimer();
     setTranscript(finalTranscript);
     setPartialTranscript('');
     setError(null);
     setVoiceStatus('idle');
-    setState('thinking');
+    setState('processing');
     try {
       submissionInFlight.current = true;
       const result = await api.current.submitTranscript(finalTranscript);
+      if (!mounted.current || generation !== operationGeneration.current) return;
       setMode(api.current.mode);
       setResponse(result.visual_response_text);
       lastResponse.current = result.response_text;
@@ -225,23 +242,41 @@ export function useVoiceController({
       if (result.approval_request) {
         setState('awaiting_approval');
         setVoiceStatus('voice_ready');
+        return;
       }
       navigate(result);
-      if (!result.approval_request) speak(result.response_text);
+      if (result.state === 'interrupted' || result.state === 'cancelled' || result.state === 'error' || result.state === 'warning') {
+        setState(result.state);
+        return;
+      }
+      setState(result.state === 'completed' ? 'completed' : result.state);
+      speak(result.response_text);
     } catch (caught) {
+      if (!mounted.current || generation !== operationGeneration.current) return;
+      if (caught instanceof VoiceApiError && caught.kind === 'authentication') {
+        api.current.invalidateSession();
+      }
       setError(
-        caught instanceof VoiceApiError && caught.kind === 'busy'
-          ? 'Arima is still processing your previous request.'
-          : caught instanceof Error ? caught.message : 'Voice request failed.',
+        caught instanceof VoiceApiError && caught.kind === 'authentication'
+          ? 'Your session has expired. Sign in again to continue with Arima.'
+          : caught instanceof VoiceApiError && caught.kind === 'authorization'
+            ? 'Your account is not authorised to use this voice session.'
+            : caught instanceof VoiceApiError && caught.kind === 'busy'
+              ? 'Arima is still processing your previous request.'
+              : caught instanceof Error ? caught.message : 'Voice request failed.',
       );
-      setVoiceStatus('keyboard_mode');
+      setVoiceStatus(
+        caught instanceof VoiceApiError && caught.kind === 'authentication'
+          ? 'authentication_required'
+          : 'keyboard_mode',
+      );
       setKeyboardOpen(true);
-      setState('warning');
+      setState('error');
       settle(800);
     } finally {
       submissionInFlight.current = false;
     }
-  }, [clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
+  }, [authReady, clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
 
   const handleRecognitionFailure = useCallback((code: string) => {
     const normalized = code.toLowerCase();
@@ -254,12 +289,19 @@ export function useVoiceController({
     setVoiceStatus(recovery.status);
     setKeyboardOpen(true);
     setPartialTranscript('');
-    setState('warning');
+    setState('error');
     settle(700);
   }, [settle]);
 
   const startListening = useCallback(async () => {
     if (recognition.current !== null || recognitionAttempt.current !== null) return;
+    if (!authReady) {
+      setError('Sign in is required before using Arima voice.');
+      setVoiceStatus('authentication_required');
+      setKeyboardOpen(true);
+      setState('error');
+      return;
+    }
     if (!api.current.enabled) {
       setError('Voice is disabled by configuration. Keyboard fallback remains available.');
       setVoiceStatus('keyboard_mode');
@@ -282,23 +324,32 @@ export function useVoiceController({
       return;
     }
     const attempt = Symbol('voice-recognition');
+    const generation = operationGeneration.current;
     recognitionAttempt.current = attempt;
     clearRecoveryTimer();
     setState('requesting_microphone');
     setVoiceStatus('requesting_microphone');
     setError(null);
     try {
+      await api.current.createSession();
+      if (!mounted.current || recognitionAttempt.current !== attempt || generation !== operationGeneration.current) return;
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((track) => track.stop());
       setMicrophonePermission('granted');
-    } catch {
+    } catch (caught) {
       if (recognitionAttempt.current !== attempt) return;
       recognitionAttempt.current = null;
-      setMicrophonePermission('denied');
-      setError('Microphone blocked. Keyboard mode is active; update browser permissions to retry.');
-      setVoiceStatus('microphone_blocked');
+      if (caught instanceof VoiceApiError) {
+        setError(caught.message);
+        setVoiceStatus(caught.kind === 'authentication' ? 'authentication_required' : 'keyboard_mode');
+        setState('error');
+      } else {
+        setMicrophonePermission('denied');
+        setError('Microphone blocked. Keyboard mode is active; update browser permissions to retry.');
+        setVoiceStatus('microphone_blocked');
+        setState('error');
+      }
       setKeyboardOpen(true);
-      setState('warning');
       settle(700);
       return;
     }
@@ -348,7 +399,7 @@ export function useVoiceController({
       if (recognition.current === recognizer) recognition.current = null;
       handleRecognitionFailure('network');
     }
-  }, [clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
+  }, [authReady, clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
 
   const retryListening = useCallback(async () => {
     setVoiceStatus('retrying');
@@ -367,6 +418,7 @@ export function useVoiceController({
   }, []);
 
   const interrupt = useCallback(async () => {
+    operationGeneration.current += 1;
     recognitionAttempt.current = null;
     recognition.current?.abort();
     recognition.current = null;
@@ -382,6 +434,7 @@ export function useVoiceController({
   }, [settle, stopSpeech]);
 
   const cancel = useCallback(async () => {
+    operationGeneration.current += 1;
     recognitionAttempt.current = null;
     recognition.current?.abort();
     recognition.current = null;
@@ -405,23 +458,32 @@ export function useVoiceController({
   }, [onStateChange, state]);
 
   useEffect(() => {
-    let active = true;
-    if (!authReady) return undefined;
+    const generation = ++operationGeneration.current;
+    if (!authReady) {
+      api.current.invalidateSession();
+      const reset = window.setTimeout(() => {
+        if (!mounted.current || generation !== operationGeneration.current) return;
+        setState('idle');
+        setVoiceStatus('idle');
+      }, 0);
+      return () => window.clearTimeout(reset);
+    }
     void api.current.createSession().then(() => {
-      if (active) setMode(api.current.mode);
+      if (mounted.current && generation === operationGeneration.current) setMode(api.current.mode);
     }).catch((caught) => {
-      if (!active) return;
+      if (!mounted.current || generation !== operationGeneration.current) return;
       setError(caught instanceof Error ? caught.message : 'Voice session setup failed.');
-      setVoiceStatus('keyboard_mode');
+      setVoiceStatus(caught instanceof VoiceApiError && caught.kind === 'authentication'
+        ? 'authentication_required'
+        : 'keyboard_mode');
       setKeyboardOpen(true);
-      setState('warning');
+      setState('error');
     });
     const supportTimer = window.setTimeout(() => {
       const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
       setSpeechSupported(Boolean(Recognition));
     }, 0);
     return () => {
-      active = false;
       window.clearTimeout(supportTimer);
       recognitionAttempt.current = null;
       recognition.current?.abort();
@@ -430,6 +492,14 @@ export function useVoiceController({
       clearRecoveryTimer();
     };
   }, [authReady, clearRecoveryTimer, stopSpeech]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      operationGeneration.current += 1;
+    };
+  }, []);
 
   return {
     state,

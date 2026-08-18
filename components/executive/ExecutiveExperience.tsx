@@ -27,6 +27,7 @@ const statusCopy = {
   retrying: 'Retrying voice',
   listening_restored: 'Listening restored',
   speech_playback_interrupted: 'Speech stopped',
+  authentication_required: 'Sign in required',
   idle: 'Arima is ready',
 };
 
@@ -51,11 +52,9 @@ function ClockDisplay() {
 // Memoize the header to prevent re-renders on every state change
 const ExperienceHeader = memo(function ExperienceHeader({
   mode,
-  voiceMode,
   userName,
 }: {
   mode: string;
-  voiceMode: string;
   userName?: string;
 }) {
   return (
@@ -65,9 +64,7 @@ const ExperienceHeader = memo(function ExperienceHeader({
         <span className={styles.brandCopy}><b>ARIMA</b>EXECUTIVE OS</span>
       </Link>
       <div className={styles.headerMode}>
-        <strong className={voiceMode === 'demo' ? styles.demoBadge : styles.liveBadge}>
-          {voiceMode === 'demo' ? 'DEMO MODE' : 'LIVE MODE'}
-        </strong>
+        <strong className={styles.liveBadge}>LIVE MODE</strong>
         <ClockDisplay />
         <span>{mode.replaceAll('_', ' ')}</span>
       </div>
@@ -202,8 +199,7 @@ export function ExecutiveExperience() {
     onStateChange: handleVoiceState,
     // Wait until auth has fully restored the session (and the access token is
     // available) before creating the voice session. Otherwise the voice
-    // request fires without Authorization and receives a 401, which falls
-    // back to demo mode.
+    // request fires without Authorization and receives a 401.
     authReady: isInitialized && isAuthenticated,
   });
   const {
@@ -379,7 +375,6 @@ export function ExecutiveExperience() {
       <div className={styles.worldVignette} aria-hidden="true" />
       <ExperienceHeader
         mode={mode}
-        voiceMode={voice.mode}
         userName={user?.name}
       />
 

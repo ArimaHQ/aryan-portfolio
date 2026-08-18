@@ -140,6 +140,23 @@ test('loads the live workspace dashboard after authenticated sign-in', async ({ 
 });
 
 test('falls back to keyboard mode after a recognition network error', async ({ page }) => {
+  await page.route('**/api/v1/voice/sessions', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-recognition-network',
+        user_id: 'test-user',
+        conversation_id: 'conversation-authorized-1',
+        correlation_id: 'corr-recognition-network',
+        state: 'idle',
+        language: 'en-GB',
+        locale: 'en-GB',
+        timezone: 'UTC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
   await page.addInitScript(() => {
     class NetworkFailureRecognition {
       continuous = false;

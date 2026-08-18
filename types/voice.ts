@@ -26,6 +26,7 @@ export type VoiceStatus =
   | 'retrying'
   | 'listening_restored'
   | 'speech_playback_interrupted'
+  | 'authentication_required'
   | 'idle';
 
 export type VoiceEventType =
@@ -99,7 +100,6 @@ export type VoiceGatewayResponse = {
   approval_request?: VoiceApprovalAction | null;
   events: VoiceEvent[];
   experience_events?: ExperienceEvent[];
-  demo: boolean;
 };
 
 export type VoiceHealth = {
@@ -111,4 +111,4 @@ export type VoiceHealth = {
   checked_at: string;
 };
 
-export type VoiceMode = 'live' | 'demo';
+export type VoiceMode = 'live';

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useVoiceController } from '@/hooks/useVoiceController';
+import { useAuth } from '@/providers';
 
 type Props = {
   context: 'portfolio' | 'quant' | 'growth';
@@ -30,7 +31,10 @@ const prompts = {
 
 export function VoiceDock({ context }: Props) {
   const [open, setOpen] = useState(false);
-  const voice = useVoiceController();
+  const { isAuthenticated, isInitialized } = useAuth();
+  const voice = useVoiceController({
+    authReady: isInitialized && isAuthenticated,
+  });
   return (
     <aside className={`voice-dock${open ? ' is-open' : ''}`} aria-label="Arima voice dock">
       <button
