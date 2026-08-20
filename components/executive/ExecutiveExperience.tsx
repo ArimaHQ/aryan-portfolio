@@ -16,6 +16,7 @@ import { useNeuralExperience } from '@/hooks/useNeuralExperience';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useAuth } from '@/providers';
 import { defaultIntelligencePresentationPolicy } from '@/utils/intelligence-policy';
+import { MicrosoftIntegrationPanel } from '@/components/executive/MicrosoftIntegrationPanel';
 
 const statusCopy = {
   voice_ready: 'Voice ready',
@@ -377,6 +378,7 @@ export function ExecutiveExperience() {
         mode={mode}
         userName={user?.name}
       />
+      <MicrosoftIntegrationPanel />
 
       <div
         className={styles.cameraWorld}
