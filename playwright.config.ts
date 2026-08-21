@@ -1,8 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 import { readApprovedIsolatedTargetManifest, validateIsolatedTarget } from "./tests/isolated-e2e-guard";
 
-const isolatedRun = process.env.ARIMA_E2E_RUN === "1" && process.env.ARIMA_E2E_ENV === "isolated";
+const isolationRequested = process.env.ARIMA_E2E_RUN === "1" || process.env.ARIMA_E2E_ENV === "isolated";
+const isolatedRun = isolationRequested && process.env.ARIMA_E2E_RUN === "1" && process.env.ARIMA_E2E_ENV === "isolated";
 const configuredBaseURL = process.env.ARIMA_E2E_BASE_URL;
+if (isolationRequested && !isolatedRun) {
+  throw new Error("Refusing E2E: isolated execution requires ARIMA_E2E_RUN=1 and ARIMA_E2E_ENV=isolated.");
+}
 if (isolatedRun && (!configuredBaseURL || process.env.ARIMA_E2E_CONFIRMATION !== "ISOLATED_ONLY" || !process.env.ARIMA_E2E_ENV_ID || !process.env.ARIMA_E2E_TARGET_MANIFEST)) {
   throw new Error("Refusing isolated Playwright run without explicit isolated environment confirmation.");
 }

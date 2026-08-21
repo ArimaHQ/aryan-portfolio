@@ -12,8 +12,10 @@ to an externally supplied JSON manifest with `approved: true`,
 `environment: "isolated"`, the exact `baseURL`, exact `hostname`, and exact
 `environmentId`. The configured URL,
 hostname, and environment ID must all match that manifest; no target is
-guessed or inferred. Test-account credentials must be injected through an
-approved secret manager as `ARIMA_E2E_EMAIL`/`ARIMA_E2E_PASSWORD`.
+guessed or inferred. The manifest must also explicitly declare
+`disposable: true`, `production: false`, `customerData: false`, and
+`providerConnected: false`. Test-account credentials must be injected through
+an approved secret manager as `ARIMA_E2E_EMAIL`/`ARIMA_E2E_PASSWORD`.
 
 The isolated suite disables traces, screenshots, videos, and retained failure
 output so authentication secrets are not written to Playwright artifacts.

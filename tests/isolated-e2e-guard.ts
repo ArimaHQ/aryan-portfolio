@@ -1,4 +1,3 @@
-import { expect } from '@playwright/test';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
@@ -8,6 +7,10 @@ export type ApprovedIsolatedTargetManifest = {
   baseURL: string;
   hostname: string;
   environmentId: string;
+  disposable: true;
+  production: false;
+  customerData: false;
+  providerConnected: false;
 };
 
 export type IsolatedE2EConfig = {
@@ -39,8 +42,8 @@ export function readApprovedIsolatedTargetManifest(path = requiredEnv('ARIMA_E2E
     throw new Error('Refusing E2E: approved isolated target manifest must be an object.');
   }
   const manifest = value as Partial<ApprovedIsolatedTargetManifest>;
-  if (manifest.approved !== true || manifest.environment !== 'isolated' || typeof manifest.baseURL !== 'string' || typeof manifest.hostname !== 'string' || typeof manifest.environmentId !== 'string' || !manifest.environmentId) {
-    throw new Error('Refusing E2E: manifest must explicitly approve one URL, hostname, and environment ID.');
+  if (manifest.approved !== true || manifest.environment !== 'isolated' || manifest.disposable !== true || manifest.production !== false || manifest.customerData !== false || manifest.providerConnected !== false || typeof manifest.baseURL !== 'string' || typeof manifest.hostname !== 'string' || typeof manifest.environmentId !== 'string' || !manifest.environmentId) {
+    throw new Error('Refusing E2E: manifest must explicitly approve one disposable, non-production, non-customer, non-provider isolated target.');
   }
   let parsed: URL;
   try {
@@ -92,9 +95,7 @@ export function isolatedE2EConfig(): IsolatedE2EConfig {
 }
 
 export function assertNoProductionTarget(config: IsolatedE2EConfig) {
-  expect(config.baseURL).toBe(config.manifest.baseURL);
-  expect(new URL(config.baseURL).hostname).toBe(config.manifest.hostname);
-  expect(config.environmentId).toBe(config.manifest.environmentId);
+  validateIsolatedTarget(config.baseURL, config.environmentId, config.manifest);
 }
 
 export function jsonRecord(value: unknown): Record<string, unknown> {
