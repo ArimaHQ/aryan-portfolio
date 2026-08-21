@@ -15,7 +15,8 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:isolated-auth": "bash scripts/run-isolated-auth-e2e.sh"
   },
   "dependencies": {
     "@gsap/react": "2.1.2",
