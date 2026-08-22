@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+// @ts-expect-error Node's strip-types runner resolves the source TypeScript module directly.
 import { voiceFailureState } from '../utils/voice-error-contract.ts';
 
 test('504 maps to an explicit timeout state without transcript content', () => {
