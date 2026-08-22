@@ -1,12 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  dailyIntelligenceObjects,
-  objectsForChamber,
-  watchlistObjects,
-  weeklyPerformanceObject,
-} from '@/data/experience-demo';
 import { useAnimationPolicy } from '@/hooks/useAnimationPolicy';
 import { avatarStateFromVoice, useAvatarState } from '@/hooks/useAvatarState';
 import { useChamberNavigation } from '@/hooks/useChamberNavigation';
@@ -31,6 +25,9 @@ import {
 const deduplicate = (objects: NeuralDataObject[]) =>
   Array.from(new Map(objects.map((object) => [object.id, object])).values());
 
+const unavailableIntelligenceMessage =
+  'Live intelligence data is unavailable because provider provenance has not been verified. No simulated portfolio, market, risk, execution, or model results are shown.';
+
 export function useNeuralExperience() {
   const [reducedMotionOverride, setReducedMotionOverride] = useState(false);
   const animation = useAnimationPolicy(reducedMotionOverride);
@@ -47,10 +44,6 @@ export function useNeuralExperience() {
   const clearEntryTimers = useCallback(() => {
     entryTimers.current.forEach((timer) => window.clearTimeout(timer));
     entryTimers.current = [];
-  }, []);
-
-  const addObjects = useCallback((next: NeuralDataObject[]) => {
-    setObjects((current) => deduplicate([...current, ...next]));
   }, []);
 
   const addObject = useCallback((object: NeuralDataObject) => {
@@ -81,10 +74,6 @@ export function useNeuralExperience() {
     setAnnouncement(next);
   }, []);
 
-  const seedChamber = useCallback((target: ActiveChamber) => {
-    addObjects(objectsForChamber(target));
-  }, [addObjects]);
-
   const writeChamberPath = useCallback((target: ActiveChamber) => {
     if (typeof window === 'undefined') return;
     window.history.replaceState({}, '', executiveChamberPath(target));
@@ -103,7 +92,6 @@ export function useNeuralExperience() {
           from: 'avatar',
           onCommit: (committed) => {
             setMode('chamber');
-            seedChamber(committed);
             writeChamberPath(committed);
             transitionAvatar('presenting');
           },
@@ -114,7 +102,6 @@ export function useNeuralExperience() {
     setMode('chamber');
     chamber.navigateToChamber(target, {
       onCommit: (committed) => {
-        seedChamber(committed);
         writeChamberPath(committed);
         transitionAvatar('presenting');
       },
@@ -124,7 +111,6 @@ export function useNeuralExperience() {
     chamber,
     clearEntryTimers,
     mode,
-    seedChamber,
     transitionAvatar,
     writeChamberPath,
   ]);
@@ -147,7 +133,6 @@ export function useNeuralExperience() {
         from: 'avatar',
         onCommit: (target) => {
           setMode('chamber');
-          seedChamber(target);
           writeChamberPath(target);
           transitionAvatar('presenting');
         },
@@ -159,7 +144,6 @@ export function useNeuralExperience() {
     chamber,
     clearEntryTimers,
     mode,
-    seedChamber,
     transitionAvatar,
     writeChamberPath,
   ]);
@@ -179,21 +163,18 @@ export function useNeuralExperience() {
   }, [announce, chamber, clearEntryTimers, mode, transitionAvatar]);
 
   const showDailyIntelligence = useCallback(() => {
-    addObjects(dailyIntelligenceObjects);
-    addObjects(watchlistObjects);
     announce({
       id: 'daily-intelligence',
-      message: 'Daily intelligence is ready. Five simulated watchlist assets have appeared.',
+      message: unavailableIntelligenceMessage,
     });
-  }, [addObjects, announce]);
+  }, [announce]);
 
   const showWeeklyPerformance = useCallback(() => {
-    addObject(weeklyPerformanceObject);
     announce({
       id: 'weekly-performance',
-      message: 'A simulated weekly portfolio performance object has appeared.',
+      message: unavailableIntelligenceMessage,
     });
-  }, [addObject, announce]);
+  }, [announce]);
 
   const handleVoiceState = useCallback((state: VoiceState) => {
     transitionAvatar(avatarStateFromVoice(state));
@@ -241,23 +222,12 @@ export function useNeuralExperience() {
     return false;
   }, [enterCore, exitCore, openChamber]);
 
-  const resolveObjectAction = useCallback((
-    id: string,
-    action: 'approve' | 'reject' | 'revision',
-  ) => {
-    updateObject(id, {
-      status: action === 'approve' ? 'complete' : action === 'reject' ? 'error' : 'warning',
-      summary: action === 'approve'
-        ? 'Approved locally in demo mode. No external action has been taken.'
-        : action === 'reject'
-          ? 'Rejected locally in demo mode. No external action has been taken.'
-          : 'Revision requested locally in demo mode. No external action has been taken.',
-    });
+  const resolveObjectAction = useCallback((id: string) => {
     announce({
-      id: id + '-' + action,
-      message: action + ' recorded locally. No external action has been taken.',
+      id: id + '-action-unavailable',
+      message: 'Approval actions are unavailable until a verified approval service is connected. No action was submitted.',
     });
-  }, [announce, updateObject]);
+  }, [announce]);
 
   useEffect(() => {
     if (didReadInitialRoute.current) return;
@@ -267,7 +237,6 @@ export function useNeuralExperience() {
     const bootstrap = window.setTimeout(() => {
       setMode('chamber');
       chamber.setActiveChamber(directChamber);
-      seedChamber(directChamber);
       transitionAvatar('presenting');
       announce({
         id: 'direct-chamber',
@@ -275,25 +244,7 @@ export function useNeuralExperience() {
       });
     }, 0);
     return () => window.clearTimeout(bootstrap);
-  }, [announce, chamber, seedChamber, transitionAvatar]);
-
-  useEffect(() => {
-    if (mode === 'avatar' || animation.paused) return undefined;
-    const pulse = window.setInterval(() => {
-      addObject({
-        id: 'background-' + Date.now(),
-        kind: 'notification',
-        chamber: 'health',
-        eyebrow: 'BACKGROUND INTELLIGENCE / DEMO',
-        title: 'System pulse received',
-        summary: 'A deterministic background signal moved through the neural network.',
-        source: 'demo',
-        status: 'complete',
-        position: { x: 84, y: 16 },
-      });
-    }, 22_000);
-    return () => window.clearInterval(pulse);
-  }, [addObject, animation.paused, mode]);
+  }, [announce, chamber, transitionAvatar]);
 
   useEffect(() => () => {
     clearEntryTimers();

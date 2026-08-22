@@ -29,6 +29,17 @@ const drillDown: Partial<Record<ActiveChamber, { href: string; label: string }>>
   projects: { href: '/research-projects', label: 'Research projects' },
 };
 
+const unavailableCopy: Record<ActiveChamber, string> = {
+  executive: 'Workspace intelligence is not displayed until an authenticated, provenance-verified source is available.',
+  portfolio: 'Portfolio value, performance, risk and execution data are unavailable until a verified portfolio source is connected.',
+  quant: 'Model outputs, rankings, backtests and market observations are unavailable until verified Quant Engine records exist.',
+  growth: 'Campaign, publication and approval results are unavailable until their authenticated service responses include verified provenance.',
+  projects: 'Project intelligence is unavailable until verified workspace records are connected to this chamber.',
+  publications: 'Research and publication streams are unavailable until a verified source is connected.',
+  approvals: 'Approval decisions are unavailable until the verified approval service is connected. No local action can be submitted here.',
+  health: 'Platform health is unavailable until a verified telemetry source is connected.',
+};
+
 export function ChamberRenderer({ chamber, policy, onReturnToCore }: Props) {
   const detail = drillDown[chamber];
   return (
@@ -50,6 +61,11 @@ export function ChamberRenderer({ chamber, policy, onReturnToCore }: Props) {
           {detail && <Link href={detail.href}>Open {detail.label}</Link>}
         </div>
       </header>
+      <section className={styles.chamberDataState} role="status" aria-live="polite">
+        <span>DATA PROVENANCE / UNVERIFIED</span>
+        <strong>Live intelligence unavailable</strong>
+        <p>{unavailableCopy[chamber]}</p>
+      </section>
       <div className={styles.chamberField} aria-hidden="true">
         {chamberTags[chamber].map((tag, index) => (
           <span key={tag} style={{ '--tag-index': index } as React.CSSProperties}>{tag}</span>

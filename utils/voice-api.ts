@@ -1,210 +1,26 @@
 import type {
+  VoiceAvailability,
   VoiceGatewayResponse,
   VoiceHealth,
   VoiceMode,
-  VoiceNavigationAction,
-  VoicePanelAction,
   VoiceSession,
 } from '@/types/voice';
-import type {
-  ActiveChamber,
-  ExperienceEvent,
-  ExperienceEventType,
-} from '@/types/experience';
 import { authApi, getAccessToken } from '@/lib/auth-api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
-const FORCE_DEMO = process.env.NEXT_PUBLIC_ARIMA_DEMO_MODE === 'true';
 const VOICE_ENABLED = process.env.NEXT_PUBLIC_ARIMA_VOICE_ENABLED !== 'false';
 const REQUEST_TIMEOUT_MS = 8_000;
 
-export const initialVoiceMode: VoiceMode = FORCE_DEMO || !API_URL ? 'demo' : 'live';
+export const initialVoiceMode: VoiceMode = 'unavailable';
 
-const command = (transcript: string): {
-  text: string;
-  navigation?: VoiceNavigationAction;
-  panel?: VoicePanelAction;
-  presentation?: 'daily' | 'weekly' | 'watchlist' | 'quant' | 'growth' | 'task' | 'approval';
-} => {
-  const value = transcript.toLowerCase().replace(/[?.!,]/g, '');
-  if (
-    value.includes('enter arima')
-    || value.includes('open your intelligence')
-    || value.includes('show me your mind')
-  ) return {
-    text: 'Opening my neural core.',
-    navigation: { path: '/executive?enter=true', label: 'Arima Neural Core', focus: 'enter' },
-  };
-  if (
-    value.includes('exit the neural core')
-    || value.includes('return to arima')
-    || value.includes('exit arima')
-  ) return {
-    text: 'Returning to my avatar view.',
-    navigation: { path: 'back', label: 'Arima avatar', focus: 'exit' },
-  };
-  if (value.includes('weekly') || value.includes('performance')) return {
-    text: 'Opening Portfolio Intelligence with this simulated weekly performance presentation.',
-    navigation: { path: '/executive?chamber=portfolio', label: 'Portfolio Intelligence' },
-    presentation: 'weekly',
-  };
-  if (value.includes('portfolio')) return {
-    text: 'Following the portfolio pathway into Portfolio Intelligence.',
-    navigation: { path: '/executive?chamber=portfolio', label: 'Portfolio Intelligence' },
-    presentation: 'watchlist',
-  };
-  if (value.includes('quant research') || value.includes('regime')) return {
-    text: 'Following the Quant Research pathway. The regime field is forming.',
-    navigation: { path: '/executive?chamber=quant', label: 'Quant Research' },
-    presentation: 'quant',
-  };
-  if (value.includes('growth') && value.includes('today')) return {
-    text: 'Following the Growth pathway. Today’s private output is assembling.',
-    navigation: { path: '/executive?chamber=growth', label: 'Growth Studio', focus: 'today' },
-    panel: { panel: 'growth_output', focus: 'today' },
-    presentation: 'growth',
-  };
-  if (value.includes('growth studio')) return {
-    text: 'Following the Growth pathway.',
-    navigation: { path: '/executive?chamber=growth', label: 'Growth Studio' },
-    presentation: 'growth',
-  };
-  if (value.includes('project') || value.includes('complete a simulated task')) return {
-    text: 'Following the Projects pathway. A completion signal is returning to the core.',
-    navigation: { path: '/executive?chamber=projects', label: 'Projects' },
-    presentation: 'task',
-  };
-  if (value.includes('go back')) return {
-    text: 'Returning to Arima.',
-    navigation: { path: 'back', label: 'Arima avatar', focus: 'exit' },
-  };
-  if (value.includes('approval')) return {
-    text: 'Two simulated approval objects are ready for review.',
-    navigation: { path: '/executive?chamber=approvals', label: 'Approvals' },
-    panel: { panel: 'executive_briefing', focus: 'approvals' },
-    presentation: 'approval',
-  };
-  if (value.includes('brief') || value.includes("what's up") || value.includes('whats up')) return {
-    text: 'Today’s simulated intelligence is ready: three priorities, five watchlist assets, scheduled research and two approvals.',
-    panel: { panel: 'executive_briefing', focus: 'today' },
-    presentation: 'daily',
-  };
-  return {
-    text: 'I am in demo mode. Ask about today, Portfolio, Quant Research, Growth, Projects or approvals.',
-    panel: { panel: 'executive_briefing', focus: 'today' },
-    presentation: 'daily',
-  };
-};
-
-const id = () => globalThis.crypto?.randomUUID?.() ?? `demo-${Date.now()}`;
-
-const now = () => new Date().toISOString();
-
-const event = (
-  sessionId: string,
-  correlationId: string,
-  type: ExperienceEventType,
-  timestamp: string,
-  payload: Record<string, unknown>,
-  targetChamber: ActiveChamber | null = null,
-): ExperienceEvent => ({
-  event_id: id(),
-  session_id: sessionId,
-  correlation_id: correlationId,
-  timestamp,
-  type,
-  priority: targetChamber === 'approvals' ? 'high' : 'normal',
-  source: 'browser_demo',
-  target_chamber: targetChamber,
-  payload,
-  duration_hint: 1_000,
-  dismissible: true,
-  requires_attention: targetChamber === 'approvals',
-});
-
-function demoExperienceEvents(
-  sessionId: string,
-  correlationId: string,
-  timestamp: string,
-  resolved: ReturnType<typeof command>,
-): ExperienceEvent[] {
-  const events: ExperienceEvent[] = [
-    event(sessionId, correlationId, 'avatar_state_changed', timestamp, { state: 'thinking' }),
-    event(sessionId, correlationId, 'neural_activity_started', timestamp, { activity: 'demo_request' }),
-  ];
-  const path = resolved.navigation?.path;
-  const target = path?.includes('portfolio') ? 'portfolio'
-    : path?.includes('quant') ? 'quant'
-      : path?.includes('growth') ? 'growth'
-        : path?.includes('projects') ? 'projects'
-          : path?.includes('approvals') ? 'approvals'
-            : null;
-  if (target) {
-    events.push(event(
-      sessionId,
-      correlationId,
-      'chamber_transition_requested',
-      timestamp,
-      { path, label: resolved.navigation?.label ?? target, demo: true },
-      target,
-    ));
+export class VoiceProviderUnavailableError extends Error {
+  constructor(message = 'Voice intelligence is unavailable until a verified provider is configured.') {
+    super(message);
+    this.name = 'VoiceProviderUnavailableError';
   }
-  if (resolved.presentation === 'daily') {
-    events.push(
-      event(sessionId, correlationId, 'data_object_created', timestamp, {
-        id: 'daily-intelligence',
-        kind: 'insight',
-        title: 'Daily intelligence ready',
-        source: 'demo',
-      }, 'executive'),
-      event(sessionId, correlationId, 'watchlist_visualisation_requested', timestamp, {
-        title: 'Daily watchlist generated',
-        source: 'demo',
-      }, 'portfolio'),
-    );
-  }
-  if (resolved.presentation === 'weekly') {
-    events.push(event(sessionId, correlationId, 'performance_visualisation_requested', timestamp, {
-      title: 'Weekly performance complete',
-      source: 'demo',
-    }, 'portfolio'));
-  }
-  if (resolved.presentation === 'quant') {
-    events.push(event(sessionId, correlationId, 'data_object_created', timestamp, {
-      kind: 'research',
-      title: 'Market regime analysis',
-      source: 'demo',
-    }, 'quant'));
-  }
-  if (resolved.presentation === 'growth') {
-    events.push(event(sessionId, correlationId, 'task_visualisation_requested', timestamp, {
-      kind: 'task',
-      title: 'Growth task complete',
-      source: 'demo',
-    }, 'growth'));
-  }
-  if (resolved.presentation === 'task') {
-    events.push(event(sessionId, correlationId, 'task_visualisation_requested', timestamp, {
-      kind: 'task',
-      title: 'Portfolio Risk Report',
-      source: 'demo',
-      status: 'complete',
-    }, 'projects'));
-  }
-  if (resolved.presentation === 'approval') {
-    events.push(event(sessionId, correlationId, 'approval_visualisation_requested', timestamp, {
-      kind: 'approval',
-      title: 'Investor update draft',
-      source: 'demo',
-      requires_attention: true,
-    }, 'approvals'));
-  }
-  events.push(
-    event(sessionId, correlationId, 'avatar_state_changed', timestamp, { state: 'speaking' }),
-    event(sessionId, correlationId, 'neural_activity_completed', timestamp, { activity: 'demo_request' }),
-  );
-  return events;
 }
+
+const id = () => globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}`;
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!API_URL) throw new Error('Arima API URL is not configured');
@@ -243,75 +59,77 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 }
 
-function demoSession(): VoiceSession {
-  const timestamp = now();
-  return {
-    session_id: id(),
-    user_id: 'demo-user',
-    correlation_id: id(),
-    state: 'idle',
-    language: 'en',
-    locale: 'en-GB',
-    timezone: 'Europe/London',
-    created_at: timestamp,
-    updated_at: timestamp,
-  };
-}
-
-function demoResponse(sessionId: string, transcript: string): VoiceGatewayResponse {
-  const resolved = command(transcript);
-  const timestamp = now();
-  const correlationId = id();
-  return {
-    session_id: sessionId,
-    correlation_id: correlationId,
-    state: 'completed',
-    transcript,
-    response_text: resolved.text,
-    visual_response_text: resolved.text,
-    navigation_action: resolved.navigation,
-    panel_action: resolved.panel,
-    approval_request: null,
-    demo: true,
-    experience_events: demoExperienceEvents(sessionId, correlationId, timestamp, resolved),
-    events: [
-      { event: 'transcript_final', sequence: 0, timestamp, data: { transcript } },
-      { event: 'thinking_started', sequence: 1, timestamp, data: {} },
-      ...(resolved.navigation ? [{
-        event: 'navigation_requested' as const,
-        sequence: 2,
-        timestamp,
-        data: resolved.navigation,
-      }] : []),
-      ...(resolved.panel ? [{
-        event: 'panel_requested' as const,
-        sequence: 3,
-        timestamp,
-        data: resolved.panel,
-      }] : []),
-      { event: 'speaking_started', sequence: 4, timestamp, data: { text: resolved.text } },
-      { event: 'session_completed', sequence: 5, timestamp, data: {} },
-    ],
-  };
-}
-
 export class VoiceApiClient {
   private session: VoiceSession | null = null;
   private currentMode: VoiceMode = initialVoiceMode;
+  private currentAvailability: VoiceAvailability = 'unavailable';
+  private currentUnavailableMessage = 'Voice intelligence is unavailable until a verified provider is configured.';
 
   get mode(): VoiceMode {
     return this.currentMode;
+  }
+
+  get availability(): VoiceAvailability {
+    return this.currentAvailability;
+  }
+
+  get unavailableMessage(): string {
+    return this.currentUnavailableMessage;
   }
 
   get enabled(): boolean {
     return VOICE_ENABLED;
   }
 
-  async createSession(): Promise<VoiceSession> {
-    if (this.currentMode === 'demo') {
-      this.session = demoSession();
-      return this.session;
+  private markUnavailable(message: string): VoiceProviderUnavailableError {
+    this.session = null;
+    this.currentMode = 'unavailable';
+    this.currentAvailability = 'unavailable';
+    this.currentUnavailableMessage = message;
+    return new VoiceProviderUnavailableError(message);
+  }
+
+  async initialize(): Promise<VoiceAvailability> {
+    if (!VOICE_ENABLED) {
+      this.markUnavailable('Voice intelligence is disabled by configuration.');
+      return this.currentAvailability;
     }
+    if (!API_URL) {
+      this.markUnavailable('Voice intelligence is unavailable because the Arima API is not configured.');
+      return this.currentAvailability;
+    }
+
+    this.currentAvailability = 'checking';
+    try {
+      const health = await request<VoiceHealth>('/api/v1/voice/health');
+      const isVerified = health.enabled
+        && health.orchestration_available
+        && health.provider_provenance === 'verified';
+      if (!isVerified) {
+        const reason = health.provider_provenance === 'mock'
+          ? 'Voice intelligence is unavailable because the configured provider is a mock.'
+          : 'Voice intelligence is unavailable until the backend verifies a non-mock provider.';
+        this.markUnavailable(reason);
+        return this.currentAvailability;
+      }
+      this.currentMode = 'live';
+      this.currentAvailability = 'verified';
+      this.currentUnavailableMessage = '';
+      return this.currentAvailability;
+    } catch {
+      this.markUnavailable('Voice intelligence is unavailable while provider provenance cannot be verified.');
+      return this.currentAvailability;
+    }
+  }
+
+  private assertVerified(): void {
+    if (this.currentAvailability !== 'verified') {
+      throw this.markUnavailable(this.currentUnavailableMessage);
+    }
+  }
+
+  async createSession(): Promise<VoiceSession> {
+    this.assertVerified();
     try {
       this.session = await request<VoiceSession>('/api/v1/voice/sessions', {
         method: 'POST',
@@ -323,47 +141,41 @@ export class VoiceApiClient {
       });
       return this.session;
     } catch {
-      this.currentMode = 'demo';
-      this.session = demoSession();
-      return this.session;
+      throw this.markUnavailable('Voice intelligence is unavailable because a verified session could not be created.');
     }
   }
 
   async submitTranscript(transcript: string): Promise<VoiceGatewayResponse> {
+    this.assertVerified();
     const session = this.session ?? await this.createSession();
-    if (this.currentMode === 'demo') return demoResponse(session.session_id, transcript);
+    let response: VoiceGatewayResponse;
     try {
-      return await request<VoiceGatewayResponse>(
+      response = await request<VoiceGatewayResponse>(
         `/api/v1/voice/sessions/${session.session_id}/transcript`,
         { method: 'POST', body: JSON.stringify({ transcript }) },
       );
     } catch {
-      this.currentMode = 'demo';
-      return demoResponse(session.session_id, transcript);
+      throw this.markUnavailable('Voice intelligence is unavailable because the verified gateway did not respond.');
     }
+    if (response.demo || response.provider_provenance !== 'verified') {
+      throw this.markUnavailable(
+        'Voice intelligence is unavailable because the response provider is not verified.',
+      );
+    }
+    return response;
   }
 
   async interrupt(): Promise<void> {
-    if (!this.session || this.currentMode === 'demo') return;
+    if (!this.session || this.currentAvailability !== 'verified') return;
     await request(`/api/v1/voice/sessions/${this.session.session_id}/interrupt`, { method: 'POST' });
   }
 
   async cancel(): Promise<void> {
-    if (!this.session || this.currentMode === 'demo') return;
+    if (!this.session || this.currentAvailability !== 'verified') return;
     await request(`/api/v1/voice/sessions/${this.session.session_id}/cancel`, { method: 'POST' });
   }
 
   async health(): Promise<VoiceHealth> {
-    if (this.currentMode === 'demo') {
-      return {
-        status: 'demo',
-        enabled: VOICE_ENABLED,
-        provider_neutral: true,
-        session_store: 'browser_demo',
-        orchestration_available: false,
-        checked_at: now(),
-      };
-    }
     return request<VoiceHealth>('/api/v1/voice/health');
   }
 }

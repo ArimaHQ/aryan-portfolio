@@ -2,10 +2,29 @@ import { expect, test } from '@playwright/test';
 
 async function mockAuthApi(page: import('@playwright/test').Page) {
   let signedIn = false;
+  await page.route('**/api/v1/voice/health', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'ok',
+        enabled: true,
+        provider_neutral: true,
+        session_store: 'database',
+        orchestration_available: true,
+        provider_provenance: 'mock',
+        checked_at: new Date().toISOString(),
+      }),
+    });
+  });
   await page.route('**/api/v1/dashboard/summary', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
+        provenance: {
+          source: 'server_persisted',
+          record_type: 'workspace',
+          workspace_id: null,
+        },
         total_projects: 4,
         active_projects: 3,
         archived_projects: 1,
@@ -139,7 +158,20 @@ test('enters and exits the neural core with keyboard support', async ({ page }) 
 test('renders a direct chamber route after authenticated sign-in', async ({ page }) => {
   await signIn(page, '/executive?chamber=quant');
   await expect(page.getByRole('heading', { name: 'Quant Research' })).toBeVisible();
+  await expect(page.getByText('DATA PROVENANCE / UNVERIFIED', { exact: true })).toBeVisible();
+  await expect(page.getByText('Live intelligence unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Model outputs, rankings, backtests and market observations are unavailable/)).toBeVisible();
   await expect(page.getByText('MOCK RESEARCH DATA')).toHaveCount(0);
+});
+
+test('does not seed simulated financial objects in the authenticated portfolio chamber', async ({ page }) => {
+  await signIn(page, '/executive?chamber=portfolio');
+  await expect(page.getByRole('heading', { name: 'Portfolio Intelligence' })).toBeVisible();
+  await expect(page.getByText('DATA PROVENANCE / UNVERIFIED', { exact: true })).toBeVisible();
+  await expect(page.getByText('Live intelligence unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByText('£125,000', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('£8,420', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/simulated holdings|simulated trades/i)).toHaveCount(0);
 });
 
 test('loads the live workspace dashboard after authenticated sign-in', async ({ page }) => {
@@ -156,28 +188,12 @@ test('loads the live workspace dashboard after authenticated sign-in', async ({ 
   await expect(page.getByText('Live Market Risk', { exact: true })).toHaveCount(0);
 });
 
-test('falls back to keyboard mode after a recognition network error', async ({ page }) => {
-  await page.addInitScript(() => {
-    class NetworkFailureRecognition {
-      continuous = false;
-      interimResults = false;
-      lang = 'en-GB';
-      onresult: ((event: unknown) => void) | null = null;
-      onerror: ((event: { error: string }) => void) | null = null;
-      onend: (() => void) | null = null;
-      start() { window.setTimeout(() => this.onerror?.({ error: 'network' }), 0); }
-      stop() { this.onend?.(); }
-      abort() { this.onend?.(); }
-    }
-    Object.defineProperty(window, 'SpeechRecognition', { value: NetworkFailureRecognition });
-    Object.defineProperty(navigator, 'mediaDevices', {
-      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
-    });
-  });
+test('does not activate voice or render a fallback response without verified provider provenance', async ({ page }) => {
   await signIn(page);
-  await page.getByRole('button', { name: 'Speak' }).click();
-  await expect(page.getByText('Recognition service unavailable', { exact: true })).toBeVisible();
-  await expect(page.getByLabel(/Keyboard fallback/)).toBeVisible();
+  await expect(page.getByText('VOICE UNAVAILABLE', { exact: true })).toBeVisible();
+  await expect(page.getByText('Voice intelligence unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Unavailable' })).toBeDisabled();
+  await expect(page.getByLabel(/Keyboard fallback/)).toHaveCount(0);
 });
 
 test('honours reduced motion through the simplify control', async ({ page }) => {

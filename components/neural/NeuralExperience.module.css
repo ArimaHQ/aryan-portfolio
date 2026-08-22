@@ -365,7 +365,7 @@
   gap: 12px;
 }
 
-.demoBadge,
+.unavailableBadge,
 .liveBadge {
   border: 1px solid rgba(255, 196, 108, .42);
   padding: 6px 8px;
@@ -375,6 +375,11 @@
 .liveBadge {
   border-color: rgba(113, 227, 190, .4);
   color: #a9f4d4;
+}
+
+.unavailableBadge {
+  border-color: rgba(255, 196, 108, .42);
+  color: var(--neural-amber);
 }
 
 .userLock {
@@ -749,6 +754,34 @@
   letter-spacing: .18em;
   text-align: center;
   text-transform: uppercase;
+}
+
+.voiceUnavailable {
+  position: fixed;
+  z-index: 13;
+  left: 50%;
+  bottom: 112px;
+  display: grid;
+  width: min(480px, calc(100vw - 32px));
+  gap: 7px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 196, 108, .3);
+  background: rgba(10, 14, 18, .9);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, .4);
+  transform: translateX(-50%);
+}
+
+.voiceUnavailable strong {
+  color: var(--neural-amber);
+  font: 9px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.voiceUnavailable p {
+  margin: 0;
+  color: #aec5d5;
+  font: 12px/1.5 Arial, sans-serif;
 }
 
 .avatarStage[data-avatar-state="listening"] .avatarAura i,
@@ -1148,6 +1181,38 @@
   border-color: rgba(179, 235, 255, .74);
   background: rgba(77, 168, 219, .16);
   outline: none;
+}
+
+.chamberDataState {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  max-width: min(510px, 86vw);
+  gap: 8px;
+  margin-top: clamp(28px, 4vh, 48px);
+  border: 1px solid rgba(255, 196, 108, .28);
+  border-left-width: 2px;
+  padding: 14px 16px;
+  background: linear-gradient(110deg, rgba(53, 35, 17, .34), rgba(5, 20, 32, .5));
+  box-shadow: inset 0 0 26px rgba(255, 190, 78, .035);
+  pointer-events: auto;
+}
+
+.chamberDataState > span {
+  color: var(--neural-amber);
+  font: 8px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+}
+
+.chamberDataState > strong {
+  color: #f5e1bb;
+  font: 500 13px/1.2 Arial, sans-serif;
+}
+
+.chamberDataState > p {
+  margin: 0;
+  color: #afc2cd;
+  font: 12px/1.55 Arial, sans-serif;
 }
 
 .chamberAmbient {
@@ -2044,6 +2109,7 @@
   .chamberHeader { max-width: 100%; gap: 17px; }
   .chamberHeader h1 { font-size: 33px; }
   .chamberHeader p { font-size: 12px; }
+  .chamberDataState { max-width: 100%; margin-top: 24px; }
   .chamberActions { display: grid; justify-content: stretch; }
   .chamberActions a, .chamberActions button { text-align: center; }
   .chamberField { display: none; }

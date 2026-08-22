@@ -8,6 +8,20 @@ import { expect, test, type Page, type Route } from '@playwright/test';
  * effect must NOT fire until the refresh resolves and the token is available.
  */
 async function mockReturningAuthSession(page: Page, refreshDelayMs = 400) {
+  await page.route('**/api/v1/voice/health', async (route: Route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'healthy',
+        enabled: true,
+        provider_neutral: true,
+        session_store: 'database',
+        orchestration_available: true,
+        provider_provenance: 'verified',
+        checked_at: new Date().toISOString(),
+      }),
+    });
+  });
   await page.route('**/api/v1/auth/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const corsHeaders = {
@@ -60,7 +74,7 @@ async function mockReturningAuthSession(page: Page, refreshDelayMs = 400) {
   });
 }
 
-test('voice session request includes Authorization header and keeps LIVE MODE when authenticated', async ({ page }) => {
+test('voice session request includes Authorization header and shows verified voice when authenticated', async ({ page }) => {
   await mockReturningAuthSession(page);
 
   const voiceRequests: Array<{ timing: number; hasAuth: boolean }> = [];
@@ -97,7 +111,7 @@ test('voice session request includes Authorization header and keeps LIVE MODE wh
   // 1. Live mode starts (no demo fallback badge). These are CSS-module
   // classes, so assert the accessible status copy rather than a generated
   // implementation class name.
-  await expect(page.getByText('LIVE MODE', { exact: true })).toBeVisible();
+  await expect(page.getByText('VOICE VERIFIED', { exact: true })).toBeVisible();
   await expect(page.getByText('DEMO MODE', { exact: true })).toHaveCount(0);
 
   // 2. Exactly one voice session request fired, and it carried the token.
@@ -138,7 +152,7 @@ test('voice session effect is deferred until auth is ready (no request during re
   const elapsed = Date.now() - start;
   expect(elapsed).toBeGreaterThanOrEqual(700);
 
-  // Live mode, not demo.
-  await expect(page.getByText('LIVE MODE', { exact: true })).toBeVisible();
+  // Verified mode, not demo.
+  await expect(page.getByText('VOICE VERIFIED', { exact: true })).toBeVisible();
   await expect(page.getByText('DEMO MODE', { exact: true })).toHaveCount(0);
 });

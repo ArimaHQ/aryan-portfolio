@@ -20,6 +20,22 @@ type EventHandlers = {
   announce: (announcement: ExperienceAnnouncement) => void;
 };
 
+const dataBearingEventTypes = new Set<ExperienceEvent['type']>([
+  'data_object_created',
+  'data_object_updated',
+  'task_visualisation_requested',
+  'watchlist_visualisation_requested',
+  'performance_visualisation_requested',
+  'approval_visualisation_requested',
+  'background_job_completed',
+  'system_pulse',
+]);
+
+const hasVerifiedVoiceProvenance = (response: VoiceGatewayResponse) => {
+  return response.demo === false
+    && response.provider_provenance === 'verified';
+};
+
 const identifier = (prefix: string) =>
   prefix + '-' + (globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36));
 
@@ -32,7 +48,7 @@ const chamberValue = (value: unknown): ActiveChamber | null =>
 const objectFromPayload = (
   payload: Record<string, unknown>,
   fallback: Pick<NeuralDataObject, 'kind' | 'chamber' | 'title'>,
-  fallbackSource: NeuralDataObject['source'] = 'demo',
+  fallbackSource: NeuralDataObject['source'],
 ): NeuralDataObject => ({
   id: stringValue(payload.id, identifier('experience')),
   kind: (stringValue(payload.kind, fallback.kind) as NeuralDataObject['kind']),
@@ -41,21 +57,31 @@ const objectFromPayload = (
   eyebrow: stringValue(payload.eyebrow) || undefined,
   value: stringValue(payload.value) || undefined,
   summary: stringValue(payload.summary) || undefined,
-  source: payload.source === 'live' || payload.source === 'mixed'
-    ? payload.source
-    : payload.demo === true ? 'demo' : fallbackSource,
+  source: fallbackSource,
   status: (stringValue(payload.status, 'active') as NeuralDataObject['status']),
   dismissible: payload.dismissible !== false,
   requiresAttention: Boolean(payload.requires_attention),
 });
 
 export function useExperienceEvents(handlers: EventHandlers) {
-  const applyExperienceEvent = useCallback((event: ExperienceEvent) => {
+  const applyExperienceEvent = useCallback((
+    event: ExperienceEvent,
+    verifiedProvenance = false,
+  ) => {
     const chamber = event.target_chamber ?? chamberValue(event.payload.path) ?? 'executive';
     const title = stringValue(event.payload.title, event.type.replaceAll('_', ' '));
-    const source = event.source === 'browser_demo' || event.payload.demo === true
-      ? 'demo'
-      : 'live';
+    const source: NeuralDataObject['source'] = verifiedProvenance ? 'live' : 'demo';
+    const explicitlyDemo = event.source === 'browser_demo'
+      || event.payload.demo === true
+      || event.payload.source === 'demo';
+
+    if (dataBearingEventTypes.has(event.type) && (!verifiedProvenance || explicitlyDemo)) {
+      handlers.announce({
+        id: event.event_id + '-provenance-unverified',
+        message: 'An intelligence response was withheld because its provider provenance could not be verified. No data or action was presented.',
+      });
+      return;
+    }
 
     switch (event.type) {
       case 'avatar_state_changed':
@@ -293,16 +319,24 @@ export function useExperienceEvents(handlers: EventHandlers) {
         payload: { title: 'Voice recovery available', source: 'live' },
       });
     }
-    mapped.forEach(applyExperienceEvent);
+    mapped.forEach((mappedEvent) => applyExperienceEvent(mappedEvent, true));
   }, [applyExperienceEvent]);
 
   const applyVoiceResponse = useCallback((response: VoiceGatewayResponse) => {
+    if (!hasVerifiedVoiceProvenance(response)) {
+      handlers.announce({
+        id: 'voice-' + response.session_id + '-provenance-unverified',
+        message: 'Voice intelligence is unavailable until the backend supplies verified non-mock provider provenance. No response, market data, or execution result was presented.',
+      });
+      return false;
+    }
     if (response.experience_events?.length) {
-      response.experience_events.forEach(applyExperienceEvent);
+      response.experience_events.forEach((event) => applyExperienceEvent(event, true));
     } else {
       response.events.forEach((event) => applyVoiceEvent(event, response));
     }
-  }, [applyExperienceEvent, applyVoiceEvent]);
+    return true;
+  }, [applyExperienceEvent, applyVoiceEvent, handlers]);
 
   return {
     applyExperienceEvent,

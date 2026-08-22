@@ -15,6 +15,7 @@ import { ChamberTransition } from '@/components/transitions/ChamberTransition';
 import { useNeuralExperience } from '@/hooks/useNeuralExperience';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useAuth } from '@/providers';
+import type { VoiceAvailability } from '@/types/voice';
 import { defaultIntelligencePresentationPolicy } from '@/utils/intelligence-policy';
 
 const statusCopy = {
@@ -27,6 +28,8 @@ const statusCopy = {
   retrying: 'Retrying voice',
   listening_restored: 'Listening restored',
   speech_playback_interrupted: 'Speech stopped',
+  authentication_required: 'Authentication required',
+  provider_unverified: 'Voice intelligence unavailable',
   idle: 'Arima is ready',
 };
 
@@ -51,11 +54,11 @@ function ClockDisplay() {
 // Memoize the header to prevent re-renders on every state change
 const ExperienceHeader = memo(function ExperienceHeader({
   mode,
-  voiceMode,
+  voiceAvailability,
   userName,
 }: {
   mode: string;
-  voiceMode: string;
+  voiceAvailability: VoiceAvailability;
   userName?: string;
 }) {
   return (
@@ -65,8 +68,12 @@ const ExperienceHeader = memo(function ExperienceHeader({
         <span className={styles.brandCopy}><b>ARIMA</b>EXECUTIVE OS</span>
       </Link>
       <div className={styles.headerMode}>
-        <strong className={voiceMode === 'demo' ? styles.demoBadge : styles.liveBadge}>
-          {voiceMode === 'demo' ? 'DEMO MODE' : 'LIVE MODE'}
+        <strong className={voiceAvailability === 'verified' ? styles.liveBadge : styles.unavailableBadge}>
+          {voiceAvailability === 'verified'
+            ? 'VOICE VERIFIED'
+            : voiceAvailability === 'checking'
+              ? 'VERIFYING VOICE'
+              : 'VOICE UNAVAILABLE'}
         </strong>
         <ClockDisplay />
         <span>{mode.replaceAll('_', ' ')}</span>
@@ -82,6 +89,7 @@ const VoiceBar = memo(function VoiceBar({
   voiceStatus,
   voiceMessage,
   isSpeaking,
+  voiceAvailable,
   onSpeak,
   onRetry,
 }: {
@@ -89,6 +97,7 @@ const VoiceBar = memo(function VoiceBar({
   voiceStatus: string;
   voiceMessage: string;
   isSpeaking: boolean;
+  voiceAvailable: boolean;
   onSpeak: () => void;
   onRetry: () => void;
 }) {
@@ -100,8 +109,9 @@ const VoiceBar = memo(function VoiceBar({
       <button
         type="button"
         onClick={onSpeak}
+        disabled={!voiceAvailable && !isSpeaking}
       >
-        {isSpeaking ? 'Interrupt' : 'Speak'}
+        {isSpeaking ? 'Interrupt' : voiceAvailable ? 'Speak' : 'Unavailable'}
       </button>
       {voiceStatus === 'recognition_unavailable' && (
         <button type="button" onClick={onRetry}>Retry</button>
@@ -379,7 +389,7 @@ export function ExecutiveExperience() {
       <div className={styles.worldVignette} aria-hidden="true" />
       <ExperienceHeader
         mode={mode}
-        voiceMode={voice.mode}
+        voiceAvailability={voice.availability}
         userName={user?.name}
       />
 
@@ -410,7 +420,7 @@ export function ExecutiveExperience() {
           <section className={styles.coreInterstitial} aria-live="polite">
             <span>NEURAL CORE / CONNECTED INTELLIGENCE</span>
             <strong>Choose a pathway or ask Arima.</strong>
-            <p>Executive, portfolio, research, growth, projects, publications, approvals and system health are connected here.</p>
+            <p>Executive, portfolio, research, growth, projects, publications, approvals and system health are available through verified workspace services.</p>
           </section>
         )}
 
@@ -438,6 +448,7 @@ export function ExecutiveExperience() {
         voiceStatus={voice.voiceStatus}
         voiceMessage={voiceMessage}
         isSpeaking={voice.state === 'speaking'}
+        voiceAvailable={voice.availability === 'verified'}
         onSpeak={handleSpeak}
         onRetry={handleRetry}
       />
@@ -459,7 +470,7 @@ export function ExecutiveExperience() {
         onExit={handleExit}
       />
 
-      {voice.keyboardOpen && (
+      {voice.keyboardOpen && voice.availability === 'verified' && (
         <form className={styles.keyboardFallback} onSubmit={submitKeyboard}>
           <label htmlFor="neural-keyboard">Keyboard fallback / no audio is sent or stored</label>
           <input
@@ -471,6 +482,13 @@ export function ExecutiveExperience() {
           />
           <button type="submit">Send</button>
         </form>
+      )}
+
+      {voice.keyboardOpen && voice.availability !== 'verified' && (
+        <section className={styles.voiceUnavailable} role="status" aria-live="polite">
+          <strong>Voice intelligence unavailable</strong>
+          <p>{voice.error ?? 'A verified non-mock provider is required before Arima can accept or respond to voice requests.'}</p>
+        </section>
       )}
 
       {announcement && (

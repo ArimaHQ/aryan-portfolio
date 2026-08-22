@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type {
+  VoiceAvailability,
   VoiceGatewayResponse,
   VoiceMode,
   VoicePanelAction,
@@ -10,7 +11,11 @@ import type {
   VoiceStatus,
   VoiceNavigationAction,
 } from '@/types/voice';
-import { initialVoiceMode, VoiceApiClient } from '@/utils/voice-api';
+import {
+  initialVoiceMode,
+  VoiceApiClient,
+  VoiceProviderUnavailableError,
+} from '@/utils/voice-api';
 
 type RecognitionResult = {
   isFinal: boolean;
@@ -93,10 +98,10 @@ export function useVoiceController({
   const recognition = useRef<BrowserRecognition | null>(null);
   const lastResponse = useRef('');
   const recoveryTimer = useRef<number | null>(null);
-  const speechPulseTimer = useRef<number | null>(null);
   const speechWasCancelled = useRef(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [mode, setMode] = useState<VoiceMode>(initialVoiceMode);
+  const [availability, setAvailability] = useState<VoiceAvailability>('checking');
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('voice_ready');
   const [partialTranscript, setPartialTranscript] = useState('');
   const [transcript, setTranscript] = useState('');
@@ -119,10 +124,8 @@ export function useVoiceController({
   }, []);
 
   const clearSpeechPulse = useCallback(() => {
-    if (speechPulseTimer.current !== null) {
-      window.clearInterval(speechPulseTimer.current);
-      speechPulseTimer.current = null;
-    }
+    // Browser TTS does not expose a trustworthy amplitude signal. Keep the
+    // visual response calm rather than simulating an audio meter.
     setSpeechAmplitude(0.24);
   }, []);
 
@@ -172,11 +175,7 @@ export function useVoiceController({
     utterance.onstart = () => {
       setState('speaking');
       setVoiceStatus('voice_ready');
-      let tick = 0;
-      speechPulseTimer.current = window.setInterval(() => {
-        tick += 1;
-        setSpeechAmplitude(0.28 + (Math.sin(tick * 1.47) + 1) * 0.26);
-      }, 130);
+      setSpeechAmplitude(0.42);
     };
     utterance.onend = () => {
       clearSpeechPulse();
@@ -203,6 +202,17 @@ export function useVoiceController({
   const submitTranscript = useCallback(async (value: string) => {
     const finalTranscript = value.trim();
     if (!finalTranscript) return;
+    if (!authReady || availability !== 'verified') {
+      setError(
+        authReady
+          ? api.current.unavailableMessage
+          : 'Sign in to access private voice intelligence.',
+      );
+      setVoiceStatus(authReady ? 'provider_unverified' : 'authentication_required');
+      setKeyboardOpen(true);
+      setState('warning');
+      return;
+    }
     clearRecoveryTimer();
     setTranscript(finalTranscript);
     setPartialTranscript('');
@@ -223,12 +233,16 @@ export function useVoiceController({
       if (!result.approval_request) speak(result.response_text);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Voice request failed.');
-      setVoiceStatus('keyboard_mode');
+      setVoiceStatus(
+        caught instanceof VoiceProviderUnavailableError
+          ? 'provider_unverified'
+          : 'keyboard_mode',
+      );
       setKeyboardOpen(true);
       setState('warning');
       settle(800);
     }
-  }, [clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
+  }, [authReady, availability, clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
 
   const handleRecognitionFailure = useCallback((code: string) => {
     const normalized = code.toLowerCase();
@@ -246,6 +260,17 @@ export function useVoiceController({
   }, [settle]);
 
   const startListening = useCallback(async () => {
+    if (!authReady || availability !== 'verified') {
+      setError(
+        authReady
+          ? api.current.unavailableMessage
+          : 'Sign in to access private voice intelligence.',
+      );
+      setVoiceStatus(authReady ? 'provider_unverified' : 'authentication_required');
+      setKeyboardOpen(true);
+      setState('warning');
+      return;
+    }
     if (!api.current.enabled) {
       setError('Voice is disabled by configuration. Keyboard fallback remains available.');
       setVoiceStatus('keyboard_mode');
@@ -321,7 +346,7 @@ export function useVoiceController({
       recognition.current = null;
       handleRecognitionFailure('network');
     }
-  }, [clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
+  }, [authReady, availability, clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
 
   const retryListening = useCallback(async () => {
     setVoiceStatus('retrying');
@@ -375,16 +400,51 @@ export function useVoiceController({
 
   useEffect(() => {
     let active = true;
-    if (!authReady) return undefined;
-    void api.current.createSession().then(() => {
-      if (active) setMode(api.current.mode);
-    });
+    if (!authReady) {
+      const unavailableTimer = window.setTimeout(() => {
+        if (!active) return;
+        setAvailability('unavailable');
+        setMode('unavailable');
+        setVoiceStatus('authentication_required');
+      }, 0);
+      return () => {
+        active = false;
+        window.clearTimeout(unavailableTimer);
+        recognition.current?.abort();
+        stopSpeech();
+        clearRecoveryTimer();
+      };
+    }
+    const verifyProvider = async () => {
+      setAvailability('checking');
+      const providerAvailability = await api.current.initialize();
+      if (!active) return;
+      setAvailability(providerAvailability);
+      setMode(api.current.mode);
+      if (providerAvailability !== 'verified') {
+        setVoiceStatus('provider_unverified');
+        setError(api.current.unavailableMessage);
+        return;
+      }
+      try {
+        await api.current.createSession();
+        if (active) setMode(api.current.mode);
+      } catch (caught) {
+        if (!active) return;
+        setAvailability('unavailable');
+        setMode(api.current.mode);
+        setVoiceStatus('provider_unverified');
+        setError(caught instanceof Error ? caught.message : api.current.unavailableMessage);
+      }
+    };
+    const providerTimer = window.setTimeout(() => void verifyProvider(), 0);
     const supportTimer = window.setTimeout(() => {
       const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
       setSpeechSupported(Boolean(Recognition));
     }, 0);
     return () => {
       active = false;
+      window.clearTimeout(providerTimer);
       window.clearTimeout(supportTimer);
       recognition.current?.abort();
       stopSpeech();
@@ -395,6 +455,7 @@ export function useVoiceController({
   return {
     state,
     mode,
+    availability,
     voiceStatus,
     partialTranscript,
     transcript,

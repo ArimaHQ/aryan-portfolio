@@ -26,7 +26,18 @@ export type VoiceStatus =
   | 'retrying'
   | 'listening_restored'
   | 'speech_playback_interrupted'
+  | 'authentication_required'
+  | 'provider_unverified'
   | 'idle';
+
+/**
+ * `verified` is intentionally available only when the backend has confirmed
+ * that a non-mock provider produced the response. The UI must never infer
+ * this from an API URL, a successful request, or a `demo: false` response.
+ */
+export type VoiceProviderProvenance = 'verified' | 'mock' | 'unverified';
+
+export type VoiceAvailability = 'checking' | 'verified' | 'unavailable';
 
 export type VoiceEventType =
   | 'session_started'
@@ -100,6 +111,7 @@ export type VoiceGatewayResponse = {
   events: VoiceEvent[];
   experience_events?: ExperienceEvent[];
   demo: boolean;
+  provider_provenance?: VoiceProviderProvenance;
 };
 
 export type VoiceHealth = {
@@ -109,6 +121,7 @@ export type VoiceHealth = {
   session_store: string;
   orchestration_available: boolean;
   checked_at: string;
+  provider_provenance?: VoiceProviderProvenance;
 };
 
-export type VoiceMode = 'live' | 'demo';
+export type VoiceMode = 'live' | 'unavailable';
