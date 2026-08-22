@@ -10,6 +10,7 @@ import {
 } from '@/components/intelligence-objects';
 import { ConsciousnessOcean } from '@/components/neural/ConsciousnessOcean';
 import { NeuralCore } from '@/components/neural/NeuralCore';
+import { MicrosoftIntegrationPanel } from '@/components/executive/MicrosoftIntegrationPanel';
 import styles from '@/components/neural/NeuralExperience.module.css';
 import { ChamberTransition } from '@/components/transitions/ChamberTransition';
 import { useNeuralExperience } from '@/hooks/useNeuralExperience';
@@ -452,6 +453,7 @@ export function ExecutiveExperience() {
       </div>
 
       <ChamberTransition transition={transition} />
+      <MicrosoftIntegrationPanel />
 
       <VoiceBar
         voiceState={voiceState}

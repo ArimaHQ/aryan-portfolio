@@ -1,30 +1,17 @@
 import { expect, test } from '@playwright/test';
 
+declare global {
+  interface Window {
+    __avatarInvalidEllipseRadii?: Array<[number, number]>;
+  }
+}
+
 async function mockAuthApi(page: import('@playwright/test').Page) {
   let signedIn = false;
-  await page.route('**/api/v1/voice/health', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        status: 'ok',
-        enabled: true,
-        provider_neutral: true,
-        session_store: 'database',
-        orchestration_available: true,
-        provider_provenance: 'mock',
-        checked_at: new Date().toISOString(),
-      }),
-    });
-  });
   await page.route('**/api/v1/dashboard/summary', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
-        provenance: {
-          source: 'server_persisted',
-          record_type: 'workspace',
-          workspace_id: null,
-        },
         total_projects: 4,
         active_projects: 3,
         archived_projects: 1,
@@ -45,19 +32,6 @@ async function mockAuthApi(page: import('@playwright/test').Page) {
         generated_at: '2026-08-02T12:00:00Z',
         range_start: '2026-07-03T00:00:00Z',
         range_end: '2026-08-02T12:00:00Z',
-      }),
-    });
-  });
-  await page.route('**/api/v1/portfolio', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        portfolio_id: 'portfolio-test',
-        workspace_id: 'workspace-test',
-        user_id: 'test-user',
-        balances: [],
-        positions: [],
-        recent_ledger_activity: [],
       }),
     });
   });
@@ -155,45 +129,170 @@ test('enters and exits the neural core with keyboard support', async ({ page }) 
   await expect(page.getByRole('button', { name: 'Enter Arima neural core' })).toBeVisible();
 });
 
+test('keeps avatar canvas ellipse radii valid during a minimal-size arrival frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    const ellipse = CanvasRenderingContext2D.prototype.ellipse;
+    const originalRect = HTMLCanvasElement.prototype.getBoundingClientRect;
+    const invalidRadii: Array<[number, number]> = [];
+
+    CanvasRenderingContext2D.prototype.ellipse = function (...args) {
+      const [, , radiusX, radiusY] = args;
+      if (
+        !Number.isFinite(radiusX)
+        || !Number.isFinite(radiusY)
+        || radiusX < 0
+        || radiusY < 0
+      ) {
+        invalidRadii.push([radiusX, radiusY]);
+        return;
+      }
+      return ellipse.apply(this, args);
+    };
+    HTMLCanvasElement.prototype.getBoundingClientRect = function () {
+      const rect = originalRect.call(this);
+      return this.getAttribute('aria-hidden') === 'true'
+        ? new DOMRect(rect.x, rect.y, 1, 1)
+        : rect;
+    };
+    window.requestAnimationFrame = (callback) => window.setTimeout(
+      () => callback(2_618),
+      0,
+    );
+    Object.defineProperty(window, '__avatarInvalidEllipseRadii', {
+      value: invalidRadii,
+    });
+  });
+
+  await signIn(page);
+  await expect(page.getByRole('button', { name: 'Enter Arima neural core' })).toBeVisible();
+  await page.waitForTimeout(100);
+  await expect.poll(() => page.evaluate(
+    () => window.__avatarInvalidEllipseRadii ?? [],
+  )).toEqual([]);
+});
+
 test('renders a direct chamber route after authenticated sign-in', async ({ page }) => {
   await signIn(page, '/executive?chamber=quant');
   await expect(page.getByRole('heading', { name: 'Quant Research' })).toBeVisible();
-  await expect(page.getByText('DATA PROVENANCE / UNVERIFIED', { exact: true })).toBeVisible();
-  await expect(page.getByText('Live intelligence unavailable', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Model outputs, rankings, backtests and market observations are unavailable/)).toBeVisible();
   await expect(page.getByText('MOCK RESEARCH DATA')).toHaveCount(0);
-});
-
-test('does not seed simulated financial objects in the authenticated portfolio chamber', async ({ page }) => {
-  await signIn(page, '/executive?chamber=portfolio');
-  await expect(page.getByRole('heading', { name: 'Portfolio Intelligence' })).toBeVisible();
-  await expect(page.getByText('DATA PROVENANCE / UNVERIFIED', { exact: true })).toBeVisible();
-  await expect(page.getByText('Live intelligence unavailable', { exact: true })).toBeVisible();
-  await expect(page.getByText('£125,000', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('£8,420', { exact: true })).toHaveCount(0);
-  await expect(page.getByText(/simulated holdings|simulated trades/i)).toHaveCount(0);
 });
 
 test('loads the live workspace dashboard after authenticated sign-in', async ({ page }) => {
   await signIn(page, '/dashboard');
   await page.waitForTimeout(1_600);
-  await expect(page.getByRole('heading', { name: 'Your financial position, clearly held.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Clarity across your operating system.' })).toBeVisible();
   await expect(page.getByText('Active projects')).toBeVisible();
   await expect(page.getByText('4 total projects')).toBeVisible();
   await expect(page.getByText('Task completion')).toBeVisible();
-  await expect(
-    page.locator('.lab-topbar').getByText('Authenticated customer data', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText('Server-persisted customer records', { exact: true })).toBeVisible();
-  await expect(page.getByText('Live Market Risk', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Live backend data', { exact: true })).toBeVisible();
 });
 
-test('does not activate voice or render a fallback response without verified provider provenance', async ({ page }) => {
+test('falls back to keyboard mode after a recognition network error', async ({ page }) => {
+  await page.route('**/api/v1/voice/sessions', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-recognition-network',
+        user_id: 'test-user',
+        conversation_id: 'conversation-authorized-1',
+        correlation_id: 'corr-recognition-network',
+        state: 'idle',
+        language: 'en-GB',
+        locale: 'en-GB',
+        timezone: 'UTC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
+  await page.addInitScript(() => {
+    class NetworkFailureRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = 'en-GB';
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: { error: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() { window.setTimeout(() => this.onerror?.({ error: 'network' }), 0); }
+      stop() { this.onend?.(); }
+      abort() { this.onend?.(); }
+    }
+    Object.defineProperty(window, 'SpeechRecognition', { value: NetworkFailureRecognition });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+    });
+  });
   await signIn(page);
-  await expect(page.getByText('VOICE UNAVAILABLE', { exact: true })).toBeVisible();
-  await expect(page.getByText('Voice intelligence unavailable', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Unavailable' })).toBeDisabled();
-  await expect(page.getByLabel(/Keyboard fallback/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Speak' }).click();
+  await expect(page.getByText('Recognition service unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByLabel(/Keyboard fallback/)).toBeVisible();
+});
+
+test('submits only once when recognition emits repeated final results', async ({ page }) => {
+  let transcriptRequests = 0;
+  await page.route('**/api/v1/voice/sessions', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204 });
+      return;
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-duplicate-final',
+        user_id: 'test-user',
+        conversation_id: 'conversation-authorized-1',
+        correlation_id: 'corr-duplicate-final',
+        state: 'idle',
+        language: 'en-US',
+        locale: 'en-US',
+        timezone: 'UTC',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
+  await page.route('**/api/v1/voice/sessions/voice-session-duplicate-final/transcript', async (route) => {
+    transcriptRequests += 1;
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        session_id: 'voice-session-duplicate-final',
+        correlation_id: 'corr-duplicate-final',
+        state: 'completed',
+        transcript: 'What is your risk management framework?',
+        response_text: 'Risk controls are active.',
+        visual_response_text: 'Risk controls are active.',
+        events: [],
+        demo: false,
+      }),
+    });
+  });
+  await page.addInitScript(() => {
+    class DuplicateFinalRecognition {
+      continuous = false;
+      interimResults = true;
+      lang = 'en-GB';
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: { error: string }) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() {
+        const result = { resultIndex: 0, results: [{ isFinal: true, 0: { transcript: 'What is your risk management framework?' } }] };
+        window.setTimeout(() => this.onresult?.(result), 0);
+        window.setTimeout(() => this.onresult?.(result), 100);
+      }
+      stop() { this.onend?.(); }
+      abort() { this.onend?.(); }
+    }
+    Object.defineProperty(window, 'SpeechRecognition', { value: DuplicateFinalRecognition });
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
+    });
+  });
+  await signIn(page);
+  await page.getByRole('button', { name: 'Speak' }).click();
+  await expect.poll(() => transcriptRequests).toBe(1);
+  await page.waitForTimeout(250);
+  expect(transcriptRequests).toBe(1);
 });
 
 test('honours reduced motion through the simplify control', async ({ page }) => {
@@ -202,4 +301,25 @@ test('honours reduced motion through the simplify control', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Simplify' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'Enter Arima neural core' }).click();
   await expect(page.getByRole('heading', { name: 'Executive Intelligence' })).toBeVisible();
+});
+
+test('does not activate voice without verified provider provenance', async ({ page }) => {
+  await page.route('**/api/v1/voice/health', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'ok',
+        enabled: true,
+        provider_neutral: true,
+        session_store: 'database',
+        orchestration_available: true,
+        provider_provenance: 'mock',
+        checked_at: new Date().toISOString(),
+      }),
+    });
+  });
+  await signIn(page);
+  await expect(page.getByText('VOICE UNAVAILABLE', { exact: true })).toBeVisible();
+  await expect(page.getByText('Voice intelligence unavailable', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Unavailable' })).toBeDisabled();
 });

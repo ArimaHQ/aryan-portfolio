@@ -20,6 +20,10 @@ type EventHandlers = {
   announce: (announcement: ExperienceAnnouncement) => void;
 };
 
+type ApplyOptions = {
+  applyAvatarState?: boolean;
+};
+
 const dataBearingEventTypes = new Set<ExperienceEvent['type']>([
   'data_object_created',
   'data_object_updated',
@@ -66,8 +70,12 @@ const objectFromPayload = (
 export function useExperienceEvents(handlers: EventHandlers) {
   const applyExperienceEvent = useCallback((
     event: ExperienceEvent,
-    verifiedProvenance = false,
+    options: ApplyOptions | boolean = false,
   ) => {
+    const verifiedProvenance = typeof options === 'boolean' ? options : true;
+    const applyAvatarState = typeof options === 'boolean'
+      ? true
+      : options.applyAvatarState ?? true;
     const chamber = event.target_chamber ?? chamberValue(event.payload.path) ?? 'executive';
     const title = stringValue(event.payload.title, event.type.replaceAll('_', ' '));
     const source: NeuralDataObject['source'] = verifiedProvenance ? 'live' : 'demo';
@@ -85,19 +93,19 @@ export function useExperienceEvents(handlers: EventHandlers) {
 
     switch (event.type) {
       case 'avatar_state_changed':
-        handlers.setAvatar(
+        if (applyAvatarState) handlers.setAvatar(
           stringValue(event.payload.state, 'idle') as AvatarVisualState,
         );
         break;
       case 'neural_activity_started':
-        handlers.setAvatar('thinking');
+        if (applyAvatarState) handlers.setAvatar('thinking');
         handlers.announce({
           id: event.event_id,
           message: stringValue(event.payload.label, 'Arima is thinking.'),
         });
         break;
       case 'neural_activity_completed':
-        handlers.setAvatar('completed');
+        if (applyAvatarState) handlers.setAvatar('completed');
         break;
       case 'chamber_transition_requested':
         if (
@@ -150,7 +158,7 @@ export function useExperienceEvents(handlers: EventHandlers) {
           chamber,
           title: title || 'Task completed',
         }, source));
-        handlers.setAvatar('completed');
+        if (applyAvatarState) handlers.setAvatar('completed');
         break;
       case 'watchlist_visualisation_requested':
         handlers.addObject(objectFromPayload(event.payload, {
@@ -172,7 +180,7 @@ export function useExperienceEvents(handlers: EventHandlers) {
           chamber: 'approvals',
           title: title || 'Approval required',
         }, source));
-        handlers.setAvatar('awaiting_approval');
+        if (applyAvatarState) handlers.setAvatar('awaiting_approval');
         break;
       case 'warning_visualisation_requested':
         handlers.addObject(objectFromPayload(event.payload, {
@@ -180,7 +188,7 @@ export function useExperienceEvents(handlers: EventHandlers) {
           chamber,
           title: title || 'Attention required',
         }, source));
-        handlers.setAvatar('warning');
+        if (applyAvatarState) handlers.setAvatar('warning');
         break;
       case 'system_pulse':
         handlers.addObject(objectFromPayload(event.payload, {
@@ -197,6 +205,7 @@ export function useExperienceEvents(handlers: EventHandlers) {
   const applyVoiceEvent = useCallback((
     event: VoiceEvent,
     response: Pick<VoiceGatewayResponse, 'session_id' | 'correlation_id'>,
+    options: ApplyOptions = {},
   ) => {
     const now = event.timestamp;
     const chamber = chamberValue(event.data.path) ?? 'executive';
@@ -319,7 +328,10 @@ export function useExperienceEvents(handlers: EventHandlers) {
         payload: { title: 'Voice recovery available', source: 'live' },
       });
     }
-    mapped.forEach((mappedEvent) => applyExperienceEvent(mappedEvent, true));
+    mapped.forEach((mappedEvent) => applyExperienceEvent(mappedEvent, {
+      ...options,
+      applyAvatarState: options.applyAvatarState ?? true,
+    }));
   }, [applyExperienceEvent]);
 
   const applyVoiceResponse = useCallback((response: VoiceGatewayResponse) => {
@@ -331,9 +343,9 @@ export function useExperienceEvents(handlers: EventHandlers) {
       return false;
     }
     if (response.experience_events?.length) {
-      response.experience_events.forEach((event) => applyExperienceEvent(event, true));
+      response.experience_events.forEach((event) => applyExperienceEvent(event, { applyAvatarState: false }));
     } else {
-      response.events.forEach((event) => applyVoiceEvent(event, response));
+      response.events.forEach((event) => applyVoiceEvent(event, response, { applyAvatarState: false }));
     }
     return true;
   }, [applyExperienceEvent, applyVoiceEvent, handlers]);

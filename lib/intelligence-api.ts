@@ -16,25 +16,6 @@ async function fetchJSON<T>(path: string): Promise<T> {
   }
 }
 
-export type PortfolioRisk = {
-  portfolio_control: {
-    portfolio_status: string;
-    trade_permission: boolean;
-    allowed_risk_percent: number;
-    position_size_multiplier: number;
-    leverage_allowed: boolean;
-    reason: string;
-  };
-};
-
-export type TradePermission = {
-  allowed: boolean;
-  action: string;
-  reason: string;
-  risk_limit: number;
-  position_multiplier: number;
-};
-
 export type NewsItem = {
   id: number;
   title: string;
@@ -55,12 +36,6 @@ export type EconomicEvent = {
   previous: number | null;
   event_time: string;
 };
-
-export const getPortfolioRisk = () =>
-  fetchJSON<PortfolioRisk>('/api/v1/risk/portfolio');
-
-export const getTradePermission = () =>
-  fetchJSON<TradePermission>('/api/v1/risk/trade-permission');
 
 export const getLatestNews = () =>
   fetchJSON<NewsItem[]>('/api/v1/news/latest');

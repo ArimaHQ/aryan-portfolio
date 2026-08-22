@@ -2,7 +2,6 @@ import type { User } from '@/types';
 
 const API_URL = '';
 const AUTH_PATH = '/api/v1/auth';
-const CSRF_COOKIE_NAME = process.env.NEXT_PUBLIC_ARIMA_CSRF_COOKIE_NAME ?? 'arima_csrf_token';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -124,16 +123,6 @@ export const clearAuthSession = () => {
   sessionGeneration += 1;
   setSessionTokens(null, null);
   csrfRequest = null;
-};
-
-const csrfCookieToken = (): string | null => {
-  if (typeof document === 'undefined') return null;
-  const cookieName = `${CSRF_COOKIE_NAME}=`;
-  const token = document.cookie
-    .split('; ')
-    .find((item) => item.startsWith(cookieName))
-    ?.slice(cookieName.length);
-  return token ? decodeURIComponent(token) : null;
 };
 
 const parseRefreshLock = (value: string | null): RefreshLock | null => {
@@ -311,8 +300,6 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
  * the same token lifecycle as the authentication flows.
  */
 export async function getCsrfToken(): Promise<string> {
-  const cookieToken = csrfCookieToken();
-  if (cookieToken) csrfToken = cookieToken;
   if (csrfToken) return csrfToken;
   if (!csrfRequest) {
     csrfRequest = request<unknown>(`${AUTH_PATH}/csrf`, { method: 'POST' })

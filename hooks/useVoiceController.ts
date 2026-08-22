@@ -14,6 +14,7 @@ import type {
 import {
   initialVoiceMode,
   VoiceApiClient,
+  VoiceApiError,
   VoiceProviderUnavailableError,
 } from '@/utils/voice-api';
 
@@ -96,7 +97,11 @@ export function useVoiceController({
   const router = useRouter();
   const api = useRef(new VoiceApiClient());
   const recognition = useRef<BrowserRecognition | null>(null);
+  const recognitionAttempt = useRef<symbol | null>(null);
   const lastResponse = useRef('');
+  const mounted = useRef(true);
+  const operationGeneration = useRef(0);
+  const submissionInFlight = useRef(false);
   const recoveryTimer = useRef<number | null>(null);
   const speechWasCancelled = useRef(false);
   const [state, setState] = useState<VoiceState>('idle');
@@ -201,7 +206,7 @@ export function useVoiceController({
 
   const submitTranscript = useCallback(async (value: string) => {
     const finalTranscript = value.trim();
-    if (!finalTranscript) return;
+    if (!finalTranscript || submissionInFlight.current) return;
     if (!authReady || availability !== 'verified') {
       setError(
         authReady
@@ -214,13 +219,16 @@ export function useVoiceController({
       return;
     }
     clearRecoveryTimer();
+    const generation = operationGeneration.current;
+    submissionInFlight.current = true;
     setTranscript(finalTranscript);
     setPartialTranscript('');
     setError(null);
     setVoiceStatus('idle');
-    setState('thinking');
+    setState('processing');
     try {
       const result = await api.current.submitTranscript(finalTranscript);
+      if (!mounted.current || generation !== operationGeneration.current) return;
       setMode(api.current.mode);
       setResponse(result.visual_response_text);
       lastResponse.current = result.response_text;
@@ -232,9 +240,23 @@ export function useVoiceController({
       navigate(result);
       if (!result.approval_request) speak(result.response_text);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Voice request failed.');
+      if (!mounted.current || generation !== operationGeneration.current) return;
+      if (caught instanceof VoiceApiError && caught.kind === 'authentication') {
+        api.current.invalidateSession();
+      }
+      setError(
+        caught instanceof VoiceApiError && caught.kind === 'authentication'
+          ? 'Your session has expired. Sign in again to continue with Arima.'
+          : caught instanceof VoiceApiError && caught.kind === 'authorization'
+            ? 'Your account is not authorised to use this voice session.'
+            : caught instanceof VoiceApiError && caught.kind === 'busy'
+              ? 'Arima is still processing your previous request.'
+              : caught instanceof Error ? caught.message : 'Voice request failed.',
+      );
       setVoiceStatus(
-        caught instanceof VoiceProviderUnavailableError
+        caught instanceof VoiceApiError && caught.kind === 'authentication'
+          ? 'authentication_required'
+          : caught instanceof VoiceProviderUnavailableError
           ? caught.failureKind === 'timeout'
             ? 'provider_timeout'
             : caught.failureKind === 'rate_limited'
@@ -247,8 +269,10 @@ export function useVoiceController({
           : 'keyboard_mode',
       );
       setKeyboardOpen(true);
-      setState('warning');
+      setState('error');
       settle(800);
+    } finally {
+      submissionInFlight.current = false;
     }
   }, [authReady, availability, clearRecoveryTimer, navigate, onVoiceResponse, settle, speak]);
 
@@ -268,6 +292,7 @@ export function useVoiceController({
   }, [settle]);
 
   const startListening = useCallback(async () => {
+    if (recognition.current !== null || recognitionAttempt.current !== null) return;
     if (!authReady || availability !== 'verified') {
       setError(
         authReady
@@ -304,11 +329,16 @@ export function useVoiceController({
     setState('requesting_microphone');
     setVoiceStatus('requesting_microphone');
     setError(null);
+    const attempt = Symbol('voice-recognition-attempt');
+    recognitionAttempt.current = attempt;
+    const generation = operationGeneration.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current || recognitionAttempt.current !== attempt || generation !== operationGeneration.current) return;
       stream.getTracks().forEach((track) => track.stop());
       setMicrophonePermission('granted');
     } catch {
+      if (recognitionAttempt.current === attempt) recognitionAttempt.current = null;
       setMicrophonePermission('denied');
       setError('Microphone blocked. Keyboard mode is active; update browser permissions to retry.');
       setVoiceStatus('microphone_blocked');
@@ -318,6 +348,7 @@ export function useVoiceController({
       return;
     }
     const recognizer = new Recognition();
+    recognitionAttempt.current = null;
     recognizer.continuous = false;
     recognizer.interimResults = true;
     recognizer.lang = navigator.language || 'en-GB';
@@ -336,7 +367,7 @@ export function useVoiceController({
       if (final) void submitTranscript(final);
     };
     recognizer.onerror = (event) => {
-      recognition.current = null;
+      if (recognition.current === recognizer) recognition.current = null;
       handleRecognitionFailure(event.error);
     };
     recognizer.onend = () => {
@@ -351,7 +382,7 @@ export function useVoiceController({
       setState('listening');
       setVoiceStatus('listening_restored');
     } catch {
-      recognition.current = null;
+      if (recognition.current === recognizer) recognition.current = null;
       handleRecognitionFailure('network');
     }
   }, [authReady, availability, clearRecoveryTimer, handleRecognitionFailure, settle, submitTranscript]);
@@ -396,6 +427,7 @@ export function useVoiceController({
   }, []);
 
   const interrupt = useCallback(async () => {
+    operationGeneration.current += 1;
     recognition.current?.abort();
     recognition.current = null;
     stopSpeech();
@@ -410,6 +442,7 @@ export function useVoiceController({
   }, [settle, stopSpeech]);
 
   const cancel = useCallback(async () => {
+    operationGeneration.current += 1;
     recognition.current?.abort();
     recognition.current = null;
     stopSpeech();
@@ -426,6 +459,14 @@ export function useVoiceController({
   const repeat = useCallback(() => {
     if (lastResponse.current) speak(lastResponse.current);
   }, [speak]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      operationGeneration.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     onStateChange?.(state);

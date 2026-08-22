@@ -11,19 +11,26 @@ type Props = {
 
 const prompts = {
   portfolio: [
+    ['Performance', 'Tell me about portfolio performance'],
+    ['Drawdown', 'Show portfolio drawdown'],
+    ['Holdings', 'Open portfolio holdings'],
     ['Workspace', 'Open my portfolio workspace'],
     ['Research', 'Open portfolio research'],
     ['Risk', 'Open portfolio risk'],
   ],
   quant: [
+    ['Regime', 'Explain the current market regime'],
+    ['Latest run', 'Summarise the latest research run'],
     ['Research', 'Open quant research'],
     ['Methods', 'Show quant research methods'],
     ['Risk', 'Open research risk controls'],
   ],
   growth: [
+    ['Today', 'Show what Growth created today'],
     ['Workspace', 'Open Growth Studio'],
     ['Projects', 'Open projects'],
     ['Approvals', 'Open approvals'],
+    ['History', 'Show Growth execution history'],
   ],
 };
 
