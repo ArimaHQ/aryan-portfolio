@@ -30,6 +30,7 @@ export type VoiceStatus =
   | 'provider_unverified'
   | 'provider_timeout'
   | 'provider_unavailable'
+  | 'rate_limited'
   | 'voice_authorization_denied'
   | 'idle';
 
