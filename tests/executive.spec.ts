@@ -29,6 +29,19 @@ async function mockAuthApi(page: import('@playwright/test').Page) {
       }),
     });
   });
+  await page.route('**/api/v1/portfolio', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        portfolio_id: 'portfolio-test',
+        workspace_id: 'workspace-test',
+        user_id: 'test-user',
+        balances: [],
+        positions: [],
+        recent_ledger_activity: [],
+      }),
+    });
+  });
   await page.route('**/api/v1/auth/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -132,11 +145,15 @@ test('renders a direct chamber route after authenticated sign-in', async ({ page
 test('loads the live workspace dashboard after authenticated sign-in', async ({ page }) => {
   await signIn(page, '/dashboard');
   await page.waitForTimeout(1_600);
-  await expect(page.getByRole('heading', { name: 'Clarity across your operating system.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your financial position, clearly held.' })).toBeVisible();
   await expect(page.getByText('Active projects')).toBeVisible();
   await expect(page.getByText('4 total projects')).toBeVisible();
   await expect(page.getByText('Task completion')).toBeVisible();
-  await expect(page.getByText('Live backend data', { exact: true })).toBeVisible();
+  await expect(
+    page.locator('.lab-topbar').getByText('Authenticated customer data', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Server-persisted customer records', { exact: true })).toBeVisible();
+  await expect(page.getByText('Live Market Risk', { exact: true })).toHaveCount(0);
 });
 
 test('falls back to keyboard mode after a recognition network error', async ({ page }) => {

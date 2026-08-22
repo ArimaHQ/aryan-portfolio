@@ -1,6 +1,11 @@
 import { ApiClientError, apiClient } from '@/lib/api-client';
 
 export type WorkspaceDashboardSummary = {
+  provenance: {
+    source: 'server_persisted';
+    recordType: 'workspace';
+    workspaceId: string | null;
+  };
   totalProjects: number;
   activeProjects: number;
   archivedProjects: number;
@@ -36,6 +41,25 @@ const requiredString = (value: unknown, field: string) => {
   return value;
 };
 
+const nullableString = (value: unknown, field: string) => {
+  if (value === null) return null;
+  return requiredString(value, field);
+};
+
+const requiredRecord = (value: unknown, field: string): Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ApiClientError(`The dashboard response contains an invalid ${field}.`);
+  }
+  return value as Record<string, unknown>;
+};
+
+const requiredLiteral = <T extends string>(value: unknown, expected: T, field: string): T => {
+  if (value !== expected) {
+    throw new ApiClientError(`The dashboard response contains an invalid ${field}.`);
+  }
+  return expected;
+};
+
 const countMap = (value: unknown, field: string): Record<string, number> => {
   const record = value as Record<string, unknown> | null;
   if (!record) {
@@ -60,7 +84,13 @@ const unwrap = (value: unknown): Record<string, unknown> => {
 
 const parseDashboardSummary = (payload: unknown): WorkspaceDashboardSummary => {
   const record = unwrap(payload);
+  const provenance = requiredRecord(record.provenance, 'provenance');
   return {
+    provenance: {
+      source: requiredLiteral(provenance.source, 'server_persisted', 'provenance.source'),
+      recordType: requiredLiteral(provenance.record_type, 'workspace', 'provenance.record_type'),
+      workspaceId: nullableString(provenance.workspace_id, 'provenance.workspace_id'),
+    },
     totalProjects: requiredNumber(record.total_projects, 'total_projects'),
     activeProjects: requiredNumber(record.active_projects, 'active_projects'),
     archivedProjects: requiredNumber(record.archived_projects, 'archived_projects'),
