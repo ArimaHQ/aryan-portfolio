@@ -14,7 +14,7 @@ type Props = {
 
 const drillDownPath: Record<ActiveChamber, string | null> = {
   executive: null,
-  portfolio: '/portfolio-lab',
+  portfolio: null,
   quant: '/quant-research',
   growth: '/growth-studio',
   projects: '/research-projects',

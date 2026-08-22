@@ -48,7 +48,7 @@ export default function LoginPage() {
       const stored = sessionStorage.getItem('selectedDivision');
       if (stored) {
         sessionStorage.removeItem('selectedDivision');
-        router.push(stored === 'investment-banking' ? '/investment-banking' : stored === 'projects' ? '/projects' : '/portfolio-lab');
+        router.push(stored === 'investment-banking' ? '/investment-banking' : stored === 'projects' ? '/projects' : '/dashboard');
       } else {
         router.push('/dashboard');
       }

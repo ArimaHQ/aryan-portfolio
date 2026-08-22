@@ -283,7 +283,6 @@ export function WorkspaceDashboard() {
         <div className="lab-nav-label">Workspace</div>
         <nav>
           <Link className="active" href="/dashboard"><i>01</i>Dashboard</Link>
-          <Link href="/portfolio-lab"><i>02</i>Portfolio</Link>
           <Link href="/executive"><i>03</i>Avatar / AI</Link>
           <Link href="/projects"><i>04</i>Projects</Link>
           <Link href="/tasks"><i>05</i>Tasks</Link>

@@ -244,7 +244,6 @@ export function QuantResearchExperience() {
 
       <nav className={styles.dock} aria-label="Executive OS modules">
         <Link href="/executive">Executive</Link>
-        <Link href="/portfolio-lab">Portfolio</Link>
         <Link className={styles.active} href="/quant-research">Quant Lab</Link>
         <Link href="/growth-studio">Growth</Link>
       </nav>

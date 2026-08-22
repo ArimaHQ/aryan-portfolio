@@ -44,7 +44,7 @@ export function GrowthStudioExperience() {
         ))}
       </section>
       <section className="growth-history"><span>EXECUTION HISTORY</span><p>No external actions have run. This milestone does not publish, email, post or contact anyone.</p></section>
-      <nav className="module-dock"><Link href="/executive">Executive</Link><Link href="/portfolio-lab">Portfolio</Link><Link href="/quant-research">Quant Research</Link><Link className="active" href="/growth-studio">Growth</Link></nav>
+      <nav className="module-dock"><Link href="/executive">Executive</Link><Link href="/quant-research">Quant Research</Link><Link className="active" href="/growth-studio">Growth</Link></nav>
       <VoiceDock context="growth" />
     </main>
   );

@@ -23,7 +23,7 @@ const chamberTags: Record<ActiveChamber, string[]> = {
 };
 
 const drillDown: Partial<Record<ActiveChamber, { href: string; label: string }>> = {
-  portfolio: { href: '/portfolio-lab', label: 'Portfolio Lab' },
+  portfolio: undefined,
   quant: { href: '/quant-research', label: 'Quant Research detail' },
   growth: { href: '/growth-studio', label: 'Growth Studio detail' },
   projects: { href: '/research-projects', label: 'Research projects' },
