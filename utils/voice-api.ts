@@ -10,7 +10,8 @@ import { voiceFailureState } from '@/utils/voice-error-contract';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
 const VOICE_ENABLED = process.env.NEXT_PUBLIC_ARIMA_VOICE_ENABLED !== 'false';
-const REQUEST_TIMEOUT_MS = 8_000;
+// Leave response margin after the backend's bounded voice execution deadline.
+const REQUEST_TIMEOUT_MS = 25_000;
 
 export const initialVoiceMode: VoiceMode = 'unavailable';
 
