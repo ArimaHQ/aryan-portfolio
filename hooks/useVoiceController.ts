@@ -235,7 +235,13 @@ export function useVoiceController({
       setError(caught instanceof Error ? caught.message : 'Voice request failed.');
       setVoiceStatus(
         caught instanceof VoiceProviderUnavailableError
-          ? 'provider_unverified'
+          ? caught.message.includes('timed out')
+            ? 'provider_timeout'
+            : caught.message.includes('not authorised')
+              ? 'voice_authorization_denied'
+              : caught.message.includes('currently unavailable')
+                ? 'provider_unavailable'
+                : 'provider_unverified'
           : 'keyboard_mode',
       );
       setKeyboardOpen(true);

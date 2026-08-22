@@ -28,6 +28,9 @@ export type VoiceStatus =
   | 'speech_playback_interrupted'
   | 'authentication_required'
   | 'provider_unverified'
+  | 'provider_timeout'
+  | 'provider_unavailable'
+  | 'voice_authorization_denied'
   | 'idle';
 
 /**

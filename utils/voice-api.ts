@@ -6,6 +6,7 @@ import type {
   VoiceSession,
 } from '@/types/voice';
 import { authApi, getAccessToken } from '@/lib/auth-api';
+import { voiceFailureState } from '@/utils/voice-error-contract';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
 const VOICE_ENABLED = process.env.NEXT_PUBLIC_ARIMA_VOICE_ENABLED !== 'false';
@@ -19,6 +20,11 @@ export class VoiceProviderUnavailableError extends Error {
     this.name = 'VoiceProviderUnavailableError';
   }
 }
+
+class VoiceGatewayTimeoutError extends Error {}
+class VoiceGatewayUnavailableError extends Error {}
+class VoiceAuthorizationError extends Error {}
+class VoiceNetworkError extends Error {}
 
 const id = () => globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}`;
 
@@ -41,19 +47,35 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         },
       });
     };
-    let response = await performRequest();
-    if (response.status === 401) {
-      try {
-        await authApi.refresh();
-        response = await performRequest();
-      } catch {
-        // Preserve the original unauthorized response below when rotation fails.
+    try {
+      let response = await performRequest();
+      if (response.status === 401) {
+        try {
+          await authApi.refresh();
+          response = await performRequest();
+        } catch {
+          // Preserve the original unauthorized response below when rotation fails.
+        }
       }
+      if (!response.ok) {
+        if (response.status === 403) throw new VoiceAuthorizationError('Voice authorization was denied.');
+        if (response.status === 504) throw new VoiceGatewayTimeoutError('The verified voice provider timed out. Please try again.');
+        if (response.status === 503) throw new VoiceGatewayUnavailableError('The verified voice provider is currently unavailable.');
+        throw new Error(`Voice API returned ${response.status}`);
+      }
+      return await response.json() as T;
+    } catch (error) {
+      if (error instanceof VoiceAuthorizationError
+        || error instanceof VoiceGatewayTimeoutError
+        || error instanceof VoiceGatewayUnavailableError
+        || error instanceof VoiceNetworkError) {
+        throw error;
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new VoiceNetworkError('Unable to reach the Arima voice service before the request timed out.');
+      }
+      throw new VoiceNetworkError('Unable to reach the Arima voice service. Please try again.');
     }
-    if (!response.ok) {
-      throw new Error(`Voice API returned ${response.status}`);
-    }
-    return await response.json() as T;
   } finally {
     window.clearTimeout(timeout);
   }
@@ -140,7 +162,12 @@ export class VoiceApiClient {
         }),
       });
       return this.session;
-    } catch {
+    } catch (error) {
+      if (error instanceof VoiceAuthorizationError
+        || error instanceof VoiceGatewayTimeoutError
+        || error instanceof VoiceGatewayUnavailableError) {
+        throw error;
+      }
       throw this.markUnavailable('Voice intelligence is unavailable because a verified session could not be created.');
     }
   }
@@ -154,8 +181,20 @@ export class VoiceApiClient {
         `/api/v1/voice/sessions/${session.session_id}/transcript`,
         { method: 'POST', body: JSON.stringify({ transcript }) },
       );
-    } catch {
-      throw this.markUnavailable('Voice intelligence is unavailable because the verified gateway did not respond.');
+    } catch (error) {
+      if (error instanceof VoiceGatewayTimeoutError) {
+        throw this.markUnavailable(voiceFailureState('timeout').message);
+      }
+      if (error instanceof VoiceGatewayUnavailableError) {
+        throw this.markUnavailable(voiceFailureState('unavailable').message);
+      }
+      if (error instanceof VoiceAuthorizationError) {
+        throw this.markUnavailable(voiceFailureState('authorization').message);
+      }
+      if (error instanceof VoiceNetworkError) {
+        throw this.markUnavailable(voiceFailureState('network').message);
+      }
+      throw this.markUnavailable(voiceFailureState('network').message);
     }
     if (response.demo || response.provider_provenance !== 'verified') {
       throw this.markUnavailable(
