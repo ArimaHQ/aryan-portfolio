@@ -30,6 +30,10 @@ const statusCopy = {
   speech_playback_interrupted: 'Speech stopped',
   authentication_required: 'Authentication required',
   provider_unverified: 'Voice intelligence unavailable',
+  provider_timeout: 'Voice provider timed out',
+  provider_unavailable: 'Voice provider unavailable',
+  rate_limited: 'Voice temporarily rate limited',
+  voice_authorization_denied: 'Voice authorization denied',
   idle: 'Arima is ready',
 };
 
@@ -92,6 +96,7 @@ const VoiceBar = memo(function VoiceBar({
   voiceAvailable,
   onSpeak,
   onRetry,
+  onRetryVoice,
 }: {
   voiceState: string;
   voiceStatus: string;
@@ -100,6 +105,7 @@ const VoiceBar = memo(function VoiceBar({
   voiceAvailable: boolean;
   onSpeak: () => void;
   onRetry: () => void;
+  onRetryVoice: () => void;
 }) {
   return (
     <div className={styles.voiceBar} data-state={voiceState} role="status" aria-live="polite">
@@ -115,6 +121,9 @@ const VoiceBar = memo(function VoiceBar({
       </button>
       {voiceStatus === 'recognition_unavailable' && (
         <button type="button" onClick={onRetry}>Retry</button>
+      )}
+      {['provider_timeout', 'provider_unavailable', 'rate_limited'].includes(voiceStatus) && (
+        <button type="button" onClick={onRetryVoice}>Try again</button>
       )}
     </div>
   );
@@ -226,6 +235,7 @@ export function ExecutiveExperience() {
     setCaptions,
     startListening,
     retryListening,
+    retryVoice,
     interrupt,
     repeat,
   } = voice;
@@ -451,6 +461,7 @@ export function ExecutiveExperience() {
         voiceAvailable={voice.availability === 'verified'}
         onSpeak={handleSpeak}
         onRetry={handleRetry}
+        onRetryVoice={retryVoice}
       />
 
       <ExperienceControls

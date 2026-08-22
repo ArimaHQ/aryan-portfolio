@@ -11,12 +11,18 @@ import { voiceFailureState } from '@/utils/voice-error-contract';
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
 const VOICE_ENABLED = process.env.NEXT_PUBLIC_ARIMA_VOICE_ENABLED !== 'false';
 // Leave response margin after the backend's bounded voice execution deadline.
-const REQUEST_TIMEOUT_MS = 25_000;
+export const VOICE_CLIENT_TIMEOUT_MS = 40_000;
 
 export const initialVoiceMode: VoiceMode = 'unavailable';
 
+export type VoiceTransientFailureKind = 'timeout' | 'unavailable' | 'rate_limited' | 'network';
+
 export class VoiceProviderUnavailableError extends Error {
-  constructor(message = 'Voice intelligence is unavailable until a verified provider is configured.') {
+  constructor(
+    message = 'Voice intelligence is unavailable until a verified provider is configured.',
+    public readonly transient = false,
+    public readonly failureKind?: VoiceTransientFailureKind,
+  ) {
     super(message);
     this.name = 'VoiceProviderUnavailableError';
   }
@@ -24,19 +30,26 @@ export class VoiceProviderUnavailableError extends Error {
 
 class VoiceGatewayTimeoutError extends Error {}
 class VoiceGatewayUnavailableError extends Error {}
+class VoiceRateLimitedError extends Error {}
 class VoiceAuthorizationError extends Error {}
 class VoiceNetworkError extends Error {}
 
 const id = () => globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}`;
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!API_URL) throw new Error('Arima API URL is not configured');
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  apiUrl = API_URL,
+  fetchImpl: typeof fetch = fetch,
+  accessTokenProvider: typeof getAccessToken = getAccessToken,
+): Promise<T> {
+  if (!apiUrl) throw new Error('Arima API URL is not configured');
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = window.setTimeout(() => controller.abort(), VOICE_CLIENT_TIMEOUT_MS);
   try {
     const performRequest = () => {
-      const token = getAccessToken();
-      return fetch(`${API_URL}${path}`, {
+      const token = accessTokenProvider();
+      return fetchImpl(`${apiUrl}${path}`, {
         ...init,
         signal: controller.signal,
         credentials: 'include',
@@ -62,6 +75,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         if (response.status === 403) throw new VoiceAuthorizationError('Voice authorization was denied.');
         if (response.status === 504) throw new VoiceGatewayTimeoutError('The verified voice provider timed out. Please try again.');
         if (response.status === 503) throw new VoiceGatewayUnavailableError('The verified voice provider is currently unavailable.');
+        if (response.status === 429) throw new VoiceRateLimitedError('Voice requests are rate limited. Please try again shortly.');
         throw new Error(`Voice API returned ${response.status}`);
       }
       return await response.json() as T;
@@ -69,6 +83,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       if (error instanceof VoiceAuthorizationError
         || error instanceof VoiceGatewayTimeoutError
         || error instanceof VoiceGatewayUnavailableError
+        || error instanceof VoiceRateLimitedError
         || error instanceof VoiceNetworkError) {
         throw error;
       }
@@ -83,6 +98,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export class VoiceApiClient {
+  constructor(
+    private readonly apiUrl = API_URL,
+    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly accessTokenProvider = getAccessToken,
+  ) {}
+
   private session: VoiceSession | null = null;
   private currentMode: VoiceMode = initialVoiceMode;
   private currentAvailability: VoiceAvailability = 'unavailable';
@@ -112,19 +133,27 @@ export class VoiceApiClient {
     return new VoiceProviderUnavailableError(message);
   }
 
+  private transientFailure(
+    kind: VoiceTransientFailureKind,
+    message: string,
+  ): VoiceProviderUnavailableError {
+    this.session = null;
+    return new VoiceProviderUnavailableError(message, true, kind);
+  }
+
   async initialize(): Promise<VoiceAvailability> {
     if (!VOICE_ENABLED) {
       this.markUnavailable('Voice intelligence is disabled by configuration.');
       return this.currentAvailability;
     }
-    if (!API_URL) {
+    if (!this.apiUrl) {
       this.markUnavailable('Voice intelligence is unavailable because the Arima API is not configured.');
       return this.currentAvailability;
     }
 
     this.currentAvailability = 'checking';
     try {
-      const health = await request<VoiceHealth>('/api/v1/voice/health');
+      const health = await request<VoiceHealth>('/api/v1/voice/health', {}, this.apiUrl, this.fetchImpl, this.accessTokenProvider);
       const isVerified = health.enabled
         && health.orchestration_available
         && health.provider_provenance === 'verified';
@@ -139,8 +168,16 @@ export class VoiceApiClient {
       this.currentAvailability = 'verified';
       this.currentUnavailableMessage = '';
       return this.currentAvailability;
-    } catch {
-      this.markUnavailable('Voice intelligence is unavailable while provider provenance cannot be verified.');
+    } catch (error) {
+      const message = error instanceof VoiceGatewayTimeoutError
+          ? voiceFailureState('timeout').message
+          : error instanceof VoiceRateLimitedError
+          ? voiceFailureState('rate_limited').message
+          : error instanceof VoiceGatewayUnavailableError || error instanceof VoiceNetworkError
+            ? voiceFailureState('unavailable').message
+            : 'Voice intelligence is unavailable while provider provenance cannot be verified.';
+      this.currentAvailability = 'unavailable';
+      this.currentUnavailableMessage = message;
       return this.currentAvailability;
     }
   }
@@ -161,13 +198,23 @@ export class VoiceApiClient {
           locale: navigator.language || 'en-GB',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
         }),
-      });
+      }, this.apiUrl, this.fetchImpl, this.accessTokenProvider);
       return this.session;
     } catch (error) {
-      if (error instanceof VoiceAuthorizationError
-        || error instanceof VoiceGatewayTimeoutError
-        || error instanceof VoiceGatewayUnavailableError) {
-        throw error;
+      if (error instanceof VoiceAuthorizationError) {
+        throw this.markUnavailable(voiceFailureState('authorization').message);
+      }
+      if (error instanceof VoiceGatewayTimeoutError) {
+        throw this.transientFailure('timeout', voiceFailureState('timeout').message);
+      }
+      if (error instanceof VoiceGatewayUnavailableError) {
+        throw this.transientFailure('unavailable', voiceFailureState('unavailable').message);
+      }
+      if (error instanceof VoiceRateLimitedError) {
+        throw this.transientFailure('rate_limited', voiceFailureState('rate_limited').message);
+      }
+      if (error instanceof VoiceNetworkError) {
+        throw this.transientFailure('network', voiceFailureState('network').message);
       }
       throw this.markUnavailable('Voice intelligence is unavailable because a verified session could not be created.');
     }
@@ -180,22 +227,25 @@ export class VoiceApiClient {
     try {
       response = await request<VoiceGatewayResponse>(
         `/api/v1/voice/sessions/${session.session_id}/transcript`,
-        { method: 'POST', body: JSON.stringify({ transcript }) },
+        { method: 'POST', body: JSON.stringify({ transcript }) }, this.apiUrl, this.fetchImpl, this.accessTokenProvider,
       );
     } catch (error) {
       if (error instanceof VoiceGatewayTimeoutError) {
-        throw this.markUnavailable(voiceFailureState('timeout').message);
+        throw this.transientFailure('timeout', voiceFailureState('timeout').message);
       }
       if (error instanceof VoiceGatewayUnavailableError) {
-        throw this.markUnavailable(voiceFailureState('unavailable').message);
+        throw this.transientFailure('unavailable', voiceFailureState('unavailable').message);
+      }
+      if (error instanceof VoiceRateLimitedError) {
+        throw this.transientFailure('rate_limited', voiceFailureState('rate_limited').message);
       }
       if (error instanceof VoiceAuthorizationError) {
         throw this.markUnavailable(voiceFailureState('authorization').message);
       }
       if (error instanceof VoiceNetworkError) {
-        throw this.markUnavailable(voiceFailureState('network').message);
+        throw this.transientFailure('network', voiceFailureState('network').message);
       }
-      throw this.markUnavailable(voiceFailureState('network').message);
+      throw this.transientFailure('network', voiceFailureState('network').message);
     }
     if (response.demo || response.provider_provenance !== 'verified') {
       throw this.markUnavailable(

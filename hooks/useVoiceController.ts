@@ -235,12 +235,14 @@ export function useVoiceController({
       setError(caught instanceof Error ? caught.message : 'Voice request failed.');
       setVoiceStatus(
         caught instanceof VoiceProviderUnavailableError
-          ? caught.message.includes('timed out')
+          ? caught.failureKind === 'timeout'
             ? 'provider_timeout'
-            : caught.message.includes('not authorised')
-              ? 'voice_authorization_denied'
-              : caught.message.includes('currently unavailable')
+            : caught.failureKind === 'rate_limited'
+              ? 'rate_limited'
+              : caught.failureKind === 'unavailable'
                 ? 'provider_unavailable'
+                : caught.message.includes('not authorised')
+              ? 'voice_authorization_denied'
                 : 'provider_unverified'
           : 'keyboard_mode',
       );
@@ -360,6 +362,31 @@ export function useVoiceController({
     await startListening();
   }, [startListening]);
 
+  const retryVoice = useCallback(async () => {
+    setVoiceStatus('retrying');
+    setError(null);
+    try {
+      const nextAvailability = await api.current.initialize();
+      setAvailability(nextAvailability);
+      setMode(api.current.mode);
+      if (nextAvailability === 'verified') {
+        await api.current.createSession();
+        setVoiceStatus('voice_ready');
+        setState('idle');
+        return;
+      }
+      setVoiceStatus('provider_unverified');
+      setError(api.current.unavailableMessage);
+      setState('warning');
+    } catch (caught) {
+      setVoiceStatus(caught instanceof VoiceProviderUnavailableError && caught.failureKind === 'rate_limited'
+        ? 'rate_limited'
+        : 'provider_unavailable');
+      setError(caught instanceof Error ? caught.message : api.current.unavailableMessage);
+      setState('warning');
+    }
+  }, []);
+
   const stopListening = useCallback(() => {
     recognition.current?.stop();
     recognition.current = null;
@@ -478,6 +505,7 @@ export function useVoiceController({
     setKeyboardOpen,
     startListening,
     retryListening,
+    retryVoice,
     stopListening,
     submitTranscript,
     interrupt,
