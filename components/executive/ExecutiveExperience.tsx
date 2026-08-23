@@ -18,6 +18,7 @@ import { useVoiceController } from '@/hooks/useVoiceController';
 import { useAuth } from '@/providers';
 import type { VoiceAvailability } from '@/types/voice';
 import { defaultIntelligencePresentationPolicy } from '@/utils/intelligence-policy';
+import { voiceMessageForDisplay } from '@/utils/voice-presentation';
 
 const statusCopy = {
   voice_ready: 'Voice ready',
@@ -333,10 +334,11 @@ export function ExecutiveExperience() {
 
   const coreActive = mode !== 'avatar';
   const voiceState = voice.state === 'warning' ? 'warning' : voice.state;
-  const voiceMessage = voice.error
-    ?? voice.partialTranscript
-    ?? (voice.captions ? voice.response : '')
-    ?? '';
+  const voiceMessage = voiceMessageForDisplay({
+    error: voice.error,
+    partialTranscript: voice.partialTranscript,
+    response: voice.response,
+  });
 
   // Memoize the handlers to prevent unnecessary re-renders
   const handleSpeak = useCallback(() => {

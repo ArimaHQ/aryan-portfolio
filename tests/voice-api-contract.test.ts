@@ -3,6 +3,7 @@ import { describe, it } from 'vitest';
 import type { VoiceHealth } from '../types/voice';
 import { voiceFailureState } from '../utils/voice-error-contract.ts';
 import { isVoiceAiReady, VoiceApiClient, VoiceProviderUnavailableError } from '../utils/voice-api.ts';
+import { voiceMessageForDisplay } from '../utils/voice-presentation.ts';
 
 const session = {
   session_id: 'session-1',
@@ -37,6 +38,35 @@ it('keeps Voice AI ready when market provenance is unavailable', () => {
     ...health,
     market_provenance: 'unavailable',
   }), true);
+});
+
+describe('completed Voice response presentation', () => {
+  it('shows the response when captions are enabled', () => {
+    assert.equal(voiceMessageForDisplay({
+      captions: true,
+      error: null,
+      partialTranscript: '',
+      response: 'Hello from Arima.',
+    }), 'Hello from Arima.');
+  });
+
+  it('shows the response independently of the captions preference', () => {
+    assert.equal(voiceMessageForDisplay({
+      captions: false,
+      error: null,
+      partialTranscript: '',
+      response: 'Hello from Arima.',
+    }), 'Hello from Arima.');
+  });
+
+  it('does not fabricate content when no response exists', () => {
+    assert.equal(voiceMessageForDisplay({
+      captions: false,
+      error: null,
+      partialTranscript: '',
+      response: '',
+    }), '');
+  });
 });
 
 const voiceResponse = {
