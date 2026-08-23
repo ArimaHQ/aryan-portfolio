@@ -1,0 +1,22 @@
+.shell {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+.backLink { color: var(--muted); text-decoration: none; }
+.backLink:hover { color: var(--foreground); }
+.eyebrow { color: var(--accent); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+.header { margin-bottom: 42px; }
+.header h1 { margin: 12px 0; font-size: clamp(32px, 6vw, 56px); line-height: 1; }
+.muted { color: var(--muted); line-height: 1.65; }
+.panel { border: 1px solid var(--border); border-radius: 20px; padding: 28px; background: var(--panel); }
+.panel h2 { margin: 0 0 10px; }
+.button { margin-top: 20px; border: 0; border-radius: 999px; padding: 12px 18px; background: var(--accent); color: var(--background); font-weight: 700; cursor: pointer; }
+.button:disabled { cursor: wait; opacity: .6; }
+.uri { display: block; overflow-wrap: anywhere; margin: 18px 0; padding: 14px; border-radius: 10px; background: var(--background); color: var(--accent); font-size: 12px; line-height: 1.5; user-select: text; }
+.form { display: grid; gap: 10px; margin-top: 24px; }
+.form label { font-weight: 600; }
+.form input { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--background); color: var(--foreground); font: inherit; letter-spacing: .12em; }
+.error { margin-top: 18px; color: #ff9b9b; }
+.success { margin-top: 18px; color: #9ff0bd; }

@@ -270,6 +270,7 @@ export function FounderControlCenter() {
   };
 
   const forbidden = loadFailure?.status === 403;
+  const mfaEnrollmentRequired = forbidden && loadFailure?.message === 'Privileged MFA enrollment is required';
   return (
     <main className={styles.shell}>
       <header className={styles.header}>
@@ -293,6 +294,7 @@ export function FounderControlCenter() {
           <p className={styles.eyebrow}>Access restricted</p>
           <h2>Founder authorization is required.</h2>
           <p>{loadFailure?.message ?? 'The server did not authorize this account for Founder Control.'}</p>
+          {mfaEnrollmentRequired ? <Link href="/mfa-enroll">Enroll privileged MFA</Link> : null}
           <button type="button" onClick={() => void load()}>Try again</button>
         </section>
       ) : null}

@@ -6,7 +6,7 @@ type FounderTestState = {
   circuitHeaders: Record<string, string> | null;
 };
 
-async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean } = {}) {
+async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean; mfaRequired?: boolean } = {}) {
   const state: FounderTestState = { observationHeaders: null, observationBody: null, circuitHeaders: null };
   await page.route('**/api/v1/auth/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
@@ -38,8 +38,8 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
   });
 
   await page.route('**/api/v1/admin/founder/**', async (route) => {
-    if (options.forbidden) {
-      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ detail: 'Founder access is required' }) });
+    if (options.forbidden || options.mfaRequired) {
+      await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ detail: options.mfaRequired ? 'Privileged MFA enrollment is required' : 'Founder access is required' }) });
       return;
     }
     const request = route.request();
@@ -146,6 +146,15 @@ test('shows a server-forbidden state without attempting client-side role inferen
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Founder authorization is required.' })).toBeVisible();
   await expect(page.getByText('Founder access is required')).toBeVisible();
+});
+
+test('shows privileged MFA enrollment link while preserving the retry action', async ({ page }) => {
+  await mockAuthenticatedFounderApi(page, { mfaRequired: true });
+
+  await page.goto('/admin');
+  await expect(page.getByText('Privileged MFA enrollment is required')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Enroll privileged MFA' })).toHaveAttribute('href', /\/mfa-enroll\/?$/);
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
 });
 
 test('searches customer inspection and protects circuit mutations with CSRF', async ({ page }) => {
