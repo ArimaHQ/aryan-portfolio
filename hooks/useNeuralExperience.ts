@@ -26,7 +26,7 @@ const deduplicate = (objects: NeuralDataObject[]) =>
   Array.from(new Map(objects.map((object) => [object.id, object])).values());
 
 const unavailableIntelligenceMessage =
-  'Live intelligence data is unavailable because provider provenance has not been verified. No simulated portfolio, market, risk, execution, or model results are shown.';
+  'Verified live market, portfolio, risk, execution, and model data are unavailable. General AI conversation remains available; no simulated results are shown.';
 
 export function useNeuralExperience() {
   const [reducedMotionOverride, setReducedMotionOverride] = useState(false);

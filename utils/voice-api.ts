@@ -15,6 +15,17 @@ export const VOICE_CLIENT_TIMEOUT_MS = 40_000;
 
 export const initialVoiceMode: VoiceMode = 'unavailable';
 
+/**
+ * Voice AI readiness is intentionally independent from market-data readiness.
+ * A market provenance field, when supplied by the backend, is informational
+ * here and must not disable general Voice conversation.
+ */
+export const isVoiceAiReady = (health: VoiceHealth): boolean => (
+  health.enabled
+  && health.orchestration_available
+  && health.provider_provenance === 'verified'
+);
+
 export type VoiceTransientFailureKind = 'timeout' | 'unavailable' | 'rate_limited' | 'network';
 
 export type VoiceApiErrorKind =
@@ -185,9 +196,7 @@ export class VoiceApiClient {
     this.currentAvailability = 'checking';
     try {
       const health = await request<VoiceHealth>('/api/v1/voice/health', {}, this.apiUrl, this.fetchImpl, this.accessTokenProvider);
-      const isVerified = health.enabled
-        && health.orchestration_available
-        && health.provider_provenance === 'verified';
+      const isVerified = isVoiceAiReady(health);
       if (!isVerified) {
         const reason = health.provider_provenance === 'mock'
           ? 'Voice intelligence is unavailable because the configured provider is a mock.'

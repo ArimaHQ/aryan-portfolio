@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
+import type { VoiceHealth } from '../types/voice';
 import { voiceFailureState } from '../utils/voice-error-contract.ts';
-import { VoiceApiClient, VoiceProviderUnavailableError } from '../utils/voice-api.ts';
+import { isVoiceAiReady, VoiceApiClient, VoiceProviderUnavailableError } from '../utils/voice-api.ts';
 
 const session = {
   session_id: 'session-1',
@@ -21,11 +22,22 @@ const response = (status: number, payload: unknown) => ({
   json: async () => payload,
 }) as Response;
 
-const health = {
+const health: VoiceHealth = {
+  status: 'healthy',
   enabled: true,
+  provider_neutral: true,
+  session_store: 'database',
   orchestration_available: true,
+  checked_at: '2026-01-01T00:00:00Z',
   provider_provenance: 'verified',
 };
+
+it('keeps Voice AI ready when market provenance is unavailable', () => {
+  assert.equal(isVoiceAiReady({
+    ...health,
+    market_provenance: 'unavailable',
+  }), true);
+});
 
 const voiceResponse = {
   session_id: 'session-1',

@@ -41,6 +41,8 @@ export type VoiceStatus =
  */
 export type VoiceProviderProvenance = 'verified' | 'mock' | 'unverified';
 
+export type MarketProvenance = 'verified' | 'unavailable' | 'unknown';
+
 export type VoiceAvailability = 'checking' | 'verified' | 'unavailable';
 
 export type VoiceEventType =
@@ -126,6 +128,8 @@ export type VoiceHealth = {
   orchestration_available: boolean;
   checked_at: string;
   provider_provenance?: VoiceProviderProvenance;
+  /** Informational market capability; it must never gate Voice AI readiness. */
+  market_provenance?: MarketProvenance;
 };
 
 export type VoiceMode = 'live' | 'unavailable';
