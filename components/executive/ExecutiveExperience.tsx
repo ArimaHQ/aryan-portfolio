@@ -229,7 +229,6 @@ export function ExecutiveExperience() {
   });
   const {
     state: voiceControllerState,
-    keyboardOpen,
     muted,
     captions,
     setKeyboardOpen,
@@ -350,8 +349,8 @@ export function ExecutiveExperience() {
   }, [interrupt, startListening, voiceControllerState]);
 
   const handleKeyboardToggle = useCallback(() => {
-    setKeyboardOpen(!keyboardOpen);
-  }, [keyboardOpen, setKeyboardOpen]);
+    setKeyboardOpen((previous) => !previous);
+  }, [setKeyboardOpen]);
 
   const handleMuteToggle = useCallback(() => {
     setMuted(!muted);
