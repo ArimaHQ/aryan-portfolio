@@ -283,9 +283,11 @@ export function WorkspaceDashboard() {
         <div className="lab-nav-label">Workspace</div>
         <nav>
           <Link className="active" href="/dashboard"><i>01</i>Dashboard</Link>
+          <Link href="/withdrawal-request"><i>02</i>Withdrawal Request</Link>
           <Link href="/executive"><i>03</i>Avatar / AI</Link>
           <Link href="/projects"><i>04</i>Projects</Link>
           <Link href="/tasks"><i>05</i>Tasks</Link>
+          <Link href="/settings"><i>06</i>Settings</Link>
         </nav>
         <div className="lab-sidebar-foot">
           <span>Signed in as</span>
