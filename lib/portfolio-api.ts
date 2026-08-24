@@ -35,6 +35,44 @@ export type CustomerPortfolio = {
   recentLedgerActivity: PortfolioActivity[];
 };
 
+export type FounderFinancialAccount = {
+  id: string;
+  asset: string;
+  accountKind: string;
+  status: string;
+  balance: PortfolioBalance;
+};
+
+export type FounderFinancialState = {
+  userId: string;
+  workspaceId: string;
+  portfolioId: string | null;
+  financialAccounts: FounderFinancialAccount[];
+  positions: PortfolioPosition[];
+  ledgerActivityCount: number;
+  settledTradeCount: number;
+};
+
+export type FounderTrade = {
+  id: string;
+  workspaceId: string;
+  targetUserId: string;
+  reversalOfId: string | null;
+  side: string;
+  baseAsset: string;
+  quoteAsset: string;
+  quantity: string;
+  price: string;
+  quoteValue: string;
+  feeAsset: string;
+  feeAmount: string;
+  executedAt: string;
+  status: string;
+  externalExecutionId: string | null;
+  reason: string;
+  createdAt: string;
+};
+
 type JsonRecord = Record<string, unknown>;
 
 const asRecord = (value: unknown): JsonRecord | null => (
@@ -118,6 +156,63 @@ const parsePortfolio = (payload: unknown): CustomerPortfolio => {
   };
 };
 
+const parseFinancialAccount = (value: unknown, index: number): FounderFinancialAccount => {
+  const record = asRecord(value);
+  if (!record) throw new ApiClientError(`The financial-state response contains an invalid financial_accounts[${index}].`);
+  return {
+    id: requiredString(record.id, `financial_accounts[${index}].id`),
+    asset: requiredString(record.asset, `financial_accounts[${index}].asset`),
+    accountKind: requiredString(record.account_kind, `financial_accounts[${index}].account_kind`),
+    status: requiredString(record.status, `financial_accounts[${index}].status`),
+    balance: parseBalance(record.balance, index),
+  };
+};
+
+const parseFinancialState = (payload: unknown): FounderFinancialState => {
+  const record = unwrap(payload);
+  const ledgerActivityCount = record.ledger_activity_count;
+  const settledTradeCount = record.settled_trade_count;
+  if (typeof ledgerActivityCount !== 'number' || !Number.isInteger(ledgerActivityCount) || ledgerActivityCount < 0) {
+    throw new ApiClientError('The financial-state response contains an invalid ledger_activity_count.');
+  }
+  if (typeof settledTradeCount !== 'number' || !Number.isInteger(settledTradeCount) || settledTradeCount < 0) {
+    throw new ApiClientError('The financial-state response contains an invalid settled_trade_count.');
+  }
+  return {
+    userId: requiredString(record.user_id, 'user_id'),
+    workspaceId: requiredString(record.workspace_id, 'workspace_id'),
+    portfolioId: nullableString(record.portfolio_id, 'portfolio_id'),
+    financialAccounts: requiredArray(record.financial_accounts, 'financial_accounts').map(parseFinancialAccount),
+    positions: requiredArray(record.positions, 'positions').map(parsePosition),
+    ledgerActivityCount,
+    settledTradeCount,
+  };
+};
+
+const parseTrade = (value: unknown, field = 'trade'): FounderTrade => {
+  const record = asRecord(value);
+  if (!record) throw new ApiClientError(`The trade response contains an invalid ${field}.`);
+  return {
+    id: requiredString(record.id, `${field}.id`),
+    workspaceId: requiredString(record.workspace_id, `${field}.workspace_id`),
+    targetUserId: requiredString(record.target_user_id, `${field}.target_user_id`),
+    reversalOfId: nullableString(record.reversal_of_id, `${field}.reversal_of_id`),
+    side: requiredString(record.side, `${field}.side`),
+    baseAsset: requiredString(record.base_asset, `${field}.base_asset`),
+    quoteAsset: requiredString(record.quote_asset, `${field}.quote_asset`),
+    quantity: requiredString(record.quantity, `${field}.quantity`),
+    price: requiredString(record.price, `${field}.price`),
+    quoteValue: requiredString(record.quote_value, `${field}.quote_value`),
+    feeAsset: requiredString(record.fee_asset, `${field}.fee_asset`),
+    feeAmount: requiredString(record.fee_amount, `${field}.fee_amount`),
+    executedAt: requiredString(record.executed_at, `${field}.executed_at`),
+    status: requiredString(record.status, `${field}.status`),
+    externalExecutionId: nullableString(record.external_execution_id, `${field}.external_execution_id`),
+    reason: requiredString(record.reason, `${field}.reason`),
+    createdAt: requiredString(record.created_at, `${field}.created_at`),
+  };
+};
+
 export async function getCustomerPortfolio(): Promise<CustomerPortfolio> {
   return parsePortfolio(await apiClient<unknown>('/api/v1/portfolio'));
 }
@@ -125,5 +220,43 @@ export async function getCustomerPortfolio(): Promise<CustomerPortfolio> {
 export async function getFounderCustomerPortfolio(userId: string): Promise<CustomerPortfolio> {
   return parsePortfolio(await apiClient<unknown>(
     `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}`,
+  ));
+}
+
+export async function getFounderCustomerFinancialState(userId: string): Promise<FounderFinancialState> {
+  return parseFinancialState(await apiClient<unknown>(
+    `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/financial-state`,
+  ));
+}
+
+export type FounderTradeInput = {
+  side: 'buy' | 'sell';
+  base_asset: 'BTC' | 'ETH';
+  quote_asset: 'USD';
+  quantity: string;
+  price: string;
+  fee_amount: string;
+  executed_at: string;
+  reason: string;
+  idempotency_key: string;
+  external_execution_id?: string;
+};
+
+export async function getFounderCustomerTrades(userId: string): Promise<FounderTrade[]> {
+  const payload = await apiClient<unknown>(`/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades`);
+  return requiredArray(payload, 'trades').map((item, index) => parseTrade(item, `trades[${index}]`));
+}
+
+export async function recordFounderCustomerTrade(userId: string, input: FounderTradeInput): Promise<FounderTrade> {
+  return parseTrade(await apiClient<unknown>(
+    `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades`,
+    { method: 'POST', body: input },
+  ));
+}
+
+export async function reverseFounderCustomerTrade(userId: string, tradeId: string, reason: string, idempotencyKey: string): Promise<FounderTrade> {
+  return parseTrade(await apiClient<unknown>(
+    `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades/${encodeURIComponent(tradeId)}/reverse`,
+    { method: 'POST', body: { reason, idempotency_key: idempotencyKey } },
   ));
 }

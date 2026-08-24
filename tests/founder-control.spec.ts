@@ -4,10 +4,14 @@ type FounderTestState = {
   observationHeaders: Record<string, string> | null;
   observationBody: Record<string, unknown> | null;
   circuitHeaders: Record<string, string> | null;
+  tradeHeaders: Record<string, string> | null;
+  tradeBody: Record<string, unknown> | null;
+  financialStateRequests: string[];
+  mutationRequests: string[];
 };
 
-async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean; mfaRequired?: boolean } = {}) {
-  const state: FounderTestState = { observationHeaders: null, observationBody: null, circuitHeaders: null };
+async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean; mfaRequired?: boolean; financialStateFailure?: boolean } = {}) {
+  const state: FounderTestState = { observationHeaders: null, observationBody: null, circuitHeaders: null, tradeHeaders: null, tradeBody: null, financialStateRequests: [], mutationRequests: [] };
   await page.route('**/api/v1/auth/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname.endsWith('/refresh')) {
@@ -88,6 +92,7 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
       return;
     }
     if (pathname.endsWith('/observations') && request.method() === 'POST') {
+      state.mutationRequests.push(pathname);
       state.observationHeaders = request.headers();
       state.observationBody = request.postDataJSON() as Record<string, unknown>;
       await route.fulfill({
@@ -113,6 +118,37 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
   await page.route('**/api/v1/support/customers**', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().method() === 'GET' && new URL(route.request().url()).pathname.endsWith('/customers') ? [{ id: 'customer-1', name: 'Customer One', email: 'customer@example.com', is_active: true, is_verified: true, roles: ['member'], created_at: '2026-08-11T00:00:00Z', last_login_at: null, last_login_ip: null, workspace_id: 'workspace-1' }] : { id: 'customer-1', name: 'Customer One', email: 'customer@example.com', is_active: true, is_verified: true, roles: ['member'], created_at: '2026-08-11T00:00:00Z', last_login_at: null, last_login_ip: null, workspace_id: 'workspace-1', password_changed_at: null, security_events: [], sessions: [], support_status: 'active', issue_indicators: [], portfolio_balances: [], withdrawal_statuses: [] }) });
   });
+  await page.route('**/api/v1/portfolio/operations/customers/*/financial-state', async (route) => {
+    const request = route.request();
+    state.financialStateRequests.push(new URL(request.url()).pathname);
+    if (options.financialStateFailure) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Financial state unavailable' }) });
+      return;
+    }
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      user_id: 'customer-1', workspace_id: 'workspace-1', portfolio_id: null,
+      financial_accounts: [], positions: [], ledger_activity_count: 0, settled_trade_count: 0,
+    }) });
+  });
+  await page.route('**/portfolio/operations/customers/*/trades', async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      state.mutationRequests.push(request.url());
+      state.tradeHeaders = request.headers();
+      state.tradeBody = request.postDataJSON() as Record<string, unknown>;
+      await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+        id: 'trade-1', workspace_id: 'workspace-1', target_user_id: 'customer-1', founder_actor_id: 'founder-1', reversal_of_id: null,
+        side: 'buy', base_asset: 'BTC', quote_asset: 'USD', quantity: '0.000001', price: '100', quote_value: '0.0001', fee_asset: 'USD', fee_amount: '0',
+        executed_at: '2026-08-24T12:00:00Z', status: 'recorded', external_execution_id: 'test-reference', idempotency_key: 'test-trade-key-1234', reason: 'Founder manual accounting entry', created_at: '2026-08-24T12:00:01Z',
+      }) });
+      return;
+    }
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify([{
+      id: 'trade-1', workspace_id: 'workspace-1', target_user_id: 'customer-1', founder_actor_id: 'founder-1', reversal_of_id: null,
+      side: 'buy', base_asset: 'BTC', quote_asset: 'USD', quantity: '0.000001', price: '100', quote_value: '0.0001', fee_asset: 'USD', fee_amount: '0',
+      executed_at: '2026-08-24T12:00:00Z', status: 'recorded', external_execution_id: 'test-reference', idempotency_key: 'test-trade-key-1234', reason: 'Founder manual accounting entry', created_at: '2026-08-24T12:00:01Z',
+    }]) });
+  });
   await page.route('**/portfolio/operations/customers/*', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
       portfolio_id: 'portfolio-1',
@@ -124,11 +160,38 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
     }) });
   });
   await page.route('**/api/v1/withdrawals/operations/circuit/**', async (route) => {
-    if (route.request().method() === 'POST') state.circuitHeaders = route.request().headers();
+    if (route.request().method() === 'POST') {
+      state.mutationRequests.push(route.request().url());
+      state.circuitHeaders = route.request().headers();
+    }
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ workspace_id: 'workspace-1', state: route.request().method() === 'POST' ? 'paused' : 'enabled', reason: 'test', changed_at: '2026-08-11T09:00:00Z' }) });
   });
   return state;
 }
+
+test('Inspect loads authoritative financial state with the selected customer ID', async ({ page }) => {
+  const state = await mockAuthenticatedFounderApi(page);
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await expect(page.getByText('Empty persisted financial state.')).toBeVisible();
+  await expect(page.getByText('No financial accounts returned.')).toBeVisible();
+  await expect(page.getByText('Settled trade count')).toBeVisible();
+  expect(state.financialStateRequests).toEqual(['/api/v1/portfolio/operations/customers/customer-1/financial-state']);
+  expect(state.mutationRequests).toEqual([]);
+});
+
+test('Inspect renders an explicit financial-state API error', async ({ page }) => {
+  const state = await mockAuthenticatedFounderApi(page, { financialStateFailure: true });
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await expect(page.getByText('Financial state unavailable', { exact: true })).toBeVisible();
+  expect(state.financialStateRequests).toHaveLength(1);
+  expect(state.mutationRequests).toEqual([]);
+});
 
 test('renders server-provided Founder Control data and records provenance with CSRF', async ({ page }) => {
   const state = await mockAuthenticatedFounderApi(page);
@@ -176,6 +239,19 @@ test('searches customer inspection and protects circuit mutations with CSRF', as
   await expect(page.getByRole('heading', { name: 'Customer One' })).toBeVisible();
   await expect(page.getByText('BTC: 0.25')).toBeVisible();
   await expect(page.getByText(/deposit · posted · deposit-1/)).toBeVisible();
+  await page.getByLabel('Quantity', { exact: true }).fill('0.000001');
+  await page.getByLabel('Price', { exact: true }).fill('100');
+  await page.getByLabel('Reference', { exact: false }).fill('test-reference');
+  await page.getByLabel('Reason', { exact: true }).fill('Founder manual accounting entry');
+  await page.getByRole('button', { name: 'Review trade' }).click();
+  await expect(page.getByRole('dialog', { name: 'Confirm manual trade' })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm and record trade' }).click();
+  await expect(page.getByText('Trade recorded and persisted. Portfolio and trade history were refreshed from the backend.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recorded trades' })).toBeVisible();
+  await expect(page.getByText(/BUY 0.000001 BTC at 100 USD/)).toBeVisible();
+  expect(state.tradeHeaders?.['x-csrf-token']).toBe('founder-csrf-token');
+  expect(state.tradeBody?.idempotency_key).toBeTruthy();
+  expect(state.tradeBody?.external_execution_id).toBe('test-reference');
   await expect(page.getByText('Circuit breaker')).toBeVisible();
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Pause withdrawals' }).click();
