@@ -52,6 +52,8 @@ let csrfRequest: Promise<string> | null = null;
 let refreshRequest: Promise<AuthSession> | null = null;
 let sessionGeneration = 0;
 
+const CSRF_COOKIE_NAME = 'arima_csrf_token';
+
 const REFRESH_LOCK_NAME = 'arima-auth-refresh';
 const REFRESH_LOCK_STORAGE_KEY = `${REFRESH_LOCK_NAME}:lock`;
 const REFRESH_LOCK_LEASE_MS = 30_000;
@@ -124,6 +126,19 @@ export const clearAuthSession = () => {
   sessionGeneration += 1;
   setSessionTokens(null, null);
   csrfRequest = null;
+};
+
+const readCsrfCookie = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const cookie = document.cookie
+    .split('; ')
+    .find((item) => item.startsWith(`${CSRF_COOKIE_NAME}=`));
+  return cookie ? decodeURIComponent(cookie.slice(CSRF_COOKIE_NAME.length + 1)) : null;
+};
+
+export const refreshCsrfToken = async (): Promise<string> => {
+  csrfToken = null;
+  return getCsrfToken();
 };
 
 const parseRefreshLock = (value: string | null): RefreshLock | null => {
@@ -301,7 +316,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
  * the same token lifecycle as the authentication flows.
  */
 export async function getCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken;
+  const cookieToken = readCsrfCookie();
+  if (csrfToken && (!cookieToken || cookieToken === csrfToken)) return csrfToken;
   if (!csrfRequest) {
     csrfRequest = request<unknown>(`${AUTH_PATH}/csrf`, { method: 'POST' })
       .then((payload) => {

@@ -1,4 +1,4 @@
-import { authApi, getAccessToken, getCsrfToken } from '@/lib/auth-api';
+import { authApi, getAccessToken, getCsrfToken, refreshCsrfToken } from '@/lib/auth-api';
 
 const DEFAULT_TIMEOUT = 30_000;
 
@@ -54,6 +54,10 @@ const errorFromResponse = (payload: unknown, status: number) => {
     : undefined;
   return new ApiClientError(message, status, code);
 };
+
+const isCsrfFailure = (error: ApiClientError | null) => (
+  error?.status === 403 && error.message === 'CSRF validation failed'
+);
 
 export async function apiClient<T>(
   path: string,
@@ -111,6 +115,14 @@ export async function apiClient<T>(
         // Preserve the original API failure when there is no refreshable session.
       }
       if (refreshed) return send(false);
+    }
+
+    if (isCsrfFailure(requestError)) {
+      try {
+        await refreshCsrfToken();
+      } catch {
+        // Preserve the server's CSRF failure; the caller must explicitly retry.
+      }
     }
 
     if (requestError) throw requestError;
