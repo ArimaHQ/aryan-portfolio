@@ -43,6 +43,7 @@ export type LoginInput = {
   email: string;
   password: string;
   rememberMe: boolean;
+  otp?: string;
 };
 
 let accessToken: string | null = null;
@@ -391,6 +392,7 @@ export const authApi = {
         email: input.email,
         password: input.password,
         remember_me: input.rememberMe,
+        ...(input.otp ? { otp: input.otp } : {}),
       },
     });
     return sessionFromResponse(payload, true);

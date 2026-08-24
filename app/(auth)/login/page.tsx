@@ -12,12 +12,14 @@ import { useAuth } from '@/providers';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, step, error, isAuthenticated, resetStep } = useAuth();
+  const { login, step, error, errorCode, isAuthenticated, resetStep } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [otp, setOtp] = useState('');
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const mfaChallenge = errorCode === 'mfa_login_required' || errorCode === 'mfa_invalid';
 
   const validate = () => {
     const errors: Record<string, string> = {};
@@ -33,7 +35,7 @@ export default function LoginPage() {
     e.preventDefault();
     resetStep();
     if (!validate()) return;
-    await login(email, password, rememberMe);
+    await login(email, password, rememberMe, mfaChallenge ? otp : undefined);
   };
 
   // After successful auth, redirect based on selectedDivision
@@ -121,6 +123,26 @@ export default function LoginPage() {
             Remember me
           </span>
         </label>
+
+        {mfaChallenge ? (
+          <div>
+            <label htmlFor="login-otp" className="block text-[9px] font-mono text-white/30 uppercase tracking-widest mb-2">
+              Privileged authenticator code
+            </label>
+            <input
+              id="login-otp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={otp}
+              onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              className="w-full bg-white/[0.03] border border-white/10 rounded-none px-4 py-3.5 text-white text-sm focus:outline-none focus:border-white/30 transition-all duration-300 placeholder:text-white/10"
+            />
+            <p className="mt-1.5 text-[10px] font-mono text-white/30">Enter the current six-digit code from your authenticator.</p>
+          </div>
+        ) : null}
 
         {/* Error State */}
         {error && (

@@ -76,6 +76,7 @@ export type AuthState = {
   user: User | null;
   step: AuthStep;
   error: string | null;
+  errorCode?: string;
 };
 
 export type User = {

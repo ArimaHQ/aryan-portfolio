@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth-api';
 
 type AuthContextValue = AuthState & {
-  login: (email: string, password: string, rememberMe: boolean) => Promise<User | null>;
+  login: (email: string, password: string, rememberMe: boolean, otp?: string) => Promise<User | null>;
   register: (name: string, email: string, password: string) => Promise<RegistrationResult | null>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<boolean>;
@@ -26,6 +26,7 @@ const INITIAL_AUTH_STATE: AuthState = {
   user: null,
   step: 'initializing',
   error: null,
+  errorCode: undefined,
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -105,12 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const setError = useCallback((error: string) => {
+  const setError = useCallback((error: string, errorCode?: string) => {
     setState((previous) => ({
       ...previous,
       isInitialized: true,
       step: 'error',
       error,
+      errorCode,
     }));
   }, []);
 
@@ -160,11 +162,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [refreshActiveSession, refreshAt, state.isAuthenticated]);
 
-  const login = useCallback(async (email: string, password: string, rememberMe: boolean): Promise<User | null> => {
+  const login = useCallback(async (email: string, password: string, rememberMe: boolean, otp?: string): Promise<User | null> => {
     const operationEpoch = invalidateSessionOperations();
     setStep('loading');
     try {
-      const session = await authApi.login({ email, password, rememberMe });
+      const session = await authApi.login({ email, password, rememberMe, otp });
       const user = session.user ?? await authApi.me();
       if (operationEpoch !== sessionEpoch.current) return null;
       if (!user.emailVerified) {
@@ -178,13 +180,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         step: 'success',
         error: null,
+        errorCode: undefined,
       });
       scheduleRefresh(session.expiresIn);
       return user;
     } catch (error) {
       if (operationEpoch !== sessionEpoch.current) return null;
       clearSession();
-      setError(errorMessage(error, 'Authentication failed. Please try again.'));
+      setError(
+        errorMessage(error, 'Authentication failed. Please try again.'),
+        error instanceof AuthApiError ? error.code : undefined,
+      );
       return null;
     }
   }, [clearSession, invalidateSessionOperations, scheduleRefresh, setError, setStep]);
