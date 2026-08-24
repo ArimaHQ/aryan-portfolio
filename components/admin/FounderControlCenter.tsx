@@ -13,6 +13,7 @@ import {
   type CustomerPortfolio,
   type FounderFinancialState,
   type FounderTrade,
+  type FounderTradeProvenance,
   type FounderTradeInput,
 } from '@/lib/portfolio-api';
 import {
@@ -199,7 +200,7 @@ export function FounderControlCenter() {
   const [customerLoading, setCustomerLoading] = useState(false);
   const [customerPortfolio, setCustomerPortfolio] = useState<CustomerPortfolio | null>(null);
   const [customerFinancialState, setCustomerFinancialState] = useState<FounderFinancialState | null>(null);
-  const [customerTrades, setCustomerTrades] = useState<FounderTrade[]>([]);
+  const [customerTrades, setCustomerTrades] = useState<FounderTradeProvenance[]>([]);
   const [tradeDraft, setTradeDraft] = useState<TradeDraft>(() => newTradeDraft());
   const [tradeConfirmation, setTradeConfirmation] = useState<TradeDraft | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
@@ -713,7 +714,7 @@ export function FounderControlCenter() {
           {customer ? (
             <section className={styles.section} aria-labelledby="trade-history-heading">
               <div className={styles.sectionHeading}><div><p className={styles.eyebrow}>Persisted trade history</p><h2 id="trade-history-heading">Recorded trades</h2></div><span>{customerTrades.length} trade{customerTrades.length === 1 ? '' : 's'}</span></div>
-              {customerTrades.length > 0 ? <ul className={styles.errors} aria-label="Recorded trades">{customerTrades.map((trade) => <li key={trade.id}><strong>{displayTrade(trade)}</strong> · {titleCase(trade.status)} · {displayDate(trade.executedAt)} · fee {trade.feeAmount} {trade.feeAsset}{trade.externalExecutionId ? ` · ${trade.externalExecutionId}` : ''}{trade.status === 'recorded' && !trade.reversalOfId ? <button type="button" onClick={() => requestTradeReversal(trade)} disabled={tradeMutationLoading}>Reverse</button> : null}</li>)}</ul> : <p className={styles.message}>No recorded trades returned.</p>}
+              {customerTrades.length > 0 ? <ul className={styles.errors} aria-label="Recorded trades">{customerTrades.map((trade) => <li key={trade.id}><strong>{displayTrade(trade)}</strong> · {titleCase(trade.status)} · {displayDate(trade.executedAt)} · fee {trade.feeAmount} {trade.feeAsset}{trade.externalExecutionId ? ` · ${trade.externalExecutionId}` : ''}<dl className={styles.metaList}><div><dt>Trade ID</dt><dd>{trade.id}</dd></div><div><dt>Reference</dt><dd>{trade.externalExecutionId ?? 'Not recorded'}</dd></div><div><dt>Settled trade ID</dt><dd>{trade.settledTradeId}</dd></div><div><dt>Financial transactions</dt><dd>{trade.financialTransactionIds.length > 0 ? trade.financialTransactionIds.join(', ') : 'None linked'}</dd></div></dl>{trade.status === 'recorded' && !trade.reversalOfId ? <button type="button" onClick={() => requestTradeReversal(trade)} disabled={tradeMutationLoading}>Reverse</button> : null}</li>)}</ul> : <p className={styles.message}>No recorded trades returned.</p>}
               {reversalTarget ? <div className={styles.healthCard} role="dialog" aria-label="Confirm trade reversal"><span className={styles.kicker}>Confirm immutable correction</span><h3>Reverse {displayTrade(reversalTarget)}</h3><label>Reversal reason<input value={reversalReason} onChange={(event) => setReversalReason(event.target.value)} maxLength={1000} required /></label><div className={styles.formActions}><button type="button" onClick={() => void reverseTrade()} disabled={tradeMutationLoading}>{tradeMutationLoading ? 'Reversing…' : 'Confirm reversal'}</button><button type="button" onClick={() => setReversalTarget(null)} disabled={tradeMutationLoading}>Cancel</button></div></div> : null}
             </section>
           ) : null}

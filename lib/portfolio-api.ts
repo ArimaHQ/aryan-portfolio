@@ -73,6 +73,11 @@ export type FounderTrade = {
   createdAt: string;
 };
 
+export type FounderTradeProvenance = FounderTrade & {
+  settledTradeId: string;
+  financialTransactionIds: string[];
+};
+
 export type FounderDepositInput = {
   asset: 'USD';
   amount: string;
@@ -235,6 +240,18 @@ const parseTrade = (value: unknown, field = 'trade'): FounderTrade => {
   };
 };
 
+const parseTradeProvenance = (value: unknown, index: number): FounderTradeProvenance => {
+  const record = asRecord(value);
+  if (!record) throw new ApiClientError(`The trade provenance response contains an invalid trades[${index}].`);
+  const trade = parseTrade(record, `trades[${index}]`);
+  const transactionIds = requiredArray(record.financial_transaction_ids, `trades[${index}].financial_transaction_ids`);
+  return {
+    ...trade,
+    settledTradeId: requiredString(record.settled_trade_id, `trades[${index}].settled_trade_id`),
+    financialTransactionIds: transactionIds.map((id, transactionIndex) => requiredString(id, `trades[${index}].financial_transaction_ids[${transactionIndex}]`)),
+  };
+};
+
 const parseDeposit = (payload: unknown): FounderDeposit => {
   const record = unwrap(payload);
   return {
@@ -281,9 +298,13 @@ export type FounderTradeInput = {
   external_execution_id?: string;
 };
 
-export async function getFounderCustomerTrades(userId: string): Promise<FounderTrade[]> {
-  const payload = await apiClient<unknown>(`/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades`);
-  return requiredArray(payload, 'trades').map((item, index) => parseTrade(item, `trades[${index}]`));
+export async function getFounderCustomerTrades(userId: string): Promise<FounderTradeProvenance[]> {
+  return getFounderCustomerTradeProvenance(userId);
+}
+
+export async function getFounderCustomerTradeProvenance(userId: string): Promise<FounderTradeProvenance[]> {
+  const payload = await apiClient<unknown>(`/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades/provenance`);
+  return requiredArray(payload, 'trades').map(parseTradeProvenance);
 }
 
 export async function recordFounderCustomerTrade(userId: string, input: FounderTradeInput): Promise<FounderTrade> {

@@ -172,6 +172,14 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
       executed_at: '2026-08-24T12:00:00Z', status: 'recorded', external_execution_id: 'test-reference', idempotency_key: 'test-trade-key-1234', reason: 'Founder manual accounting entry', created_at: '2026-08-24T12:00:01Z',
     }]) });
   });
+  await page.route('**/portfolio/operations/customers/*/trades/provenance', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify([{
+      id: 'trade-1', workspace_id: 'workspace-1', target_user_id: 'customer-1', founder_actor_id: 'founder-1', reversal_of_id: null,
+      side: 'buy', base_asset: 'BTC', quote_asset: 'USD', quantity: '0.000001', price: '100', quote_value: '0.0001', fee_asset: 'USD', fee_amount: '0',
+      executed_at: '2026-08-24T12:00:00Z', status: 'recorded', external_execution_id: 'test-reference', idempotency_key: 'test-trade-key-1234', reason: 'Founder manual accounting entry', created_at: '2026-08-24T12:00:01Z',
+      settled_trade_id: 'trade-1', financial_transaction_ids: ['transaction-quote', 'transaction-base'],
+    }]) });
+  });
   await page.route('**/portfolio/operations/customers/*', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
       portfolio_id: 'portfolio-1',
@@ -203,6 +211,17 @@ test('Inspect loads authoritative financial state with the selected customer ID'
   await expect(page.getByText('Settled trade count')).toBeVisible();
   expect(state.financialStateRequests).toEqual(['/api/v1/portfolio/operations/customers/customer-1/financial-state']);
   expect(state.mutationRequests).toEqual([]);
+});
+
+test('Inspect renders read-only persisted trade provenance', async ({ page }) => {
+  await mockAuthenticatedFounderApi(page);
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await expect(page.getByText('Trade ID', { exact: true })).toBeVisible();
+  await expect(page.getByText('transaction-quote, transaction-base')).toBeVisible();
+  await expect(page.getByText('test-reference')).toBeVisible();
 });
 
 test('Inspect renders an explicit financial-state API error', async ({ page }) => {
