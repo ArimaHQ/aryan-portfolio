@@ -121,3 +121,9 @@ const parsePortfolio = (payload: unknown): CustomerPortfolio => {
 export async function getCustomerPortfolio(): Promise<CustomerPortfolio> {
   return parsePortfolio(await apiClient<unknown>('/api/v1/portfolio'));
 }
+
+export async function getFounderCustomerPortfolio(userId: string): Promise<CustomerPortfolio> {
+  return parsePortfolio(await apiClient<unknown>(
+    `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}`,
+  ));
+}

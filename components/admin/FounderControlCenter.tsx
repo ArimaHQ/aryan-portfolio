@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiClientError } from '@/lib/api-client';
+import { getFounderCustomerPortfolio, type CustomerPortfolio } from '@/lib/portfolio-api';
 import {
   createFounderDataFeedObservation,
   getFounderDataFeeds,
@@ -150,6 +151,7 @@ export function FounderControlCenter() {
   const [customer, setCustomer] = useState<FounderCustomerDetail | null>(null);
   const [customerFailure, setCustomerFailure] = useState<LoadFailure | null>(null);
   const [customerLoading, setCustomerLoading] = useState(false);
+  const [customerPortfolio, setCustomerPortfolio] = useState<CustomerPortfolio | null>(null);
   const [circuit, setCircuit] = useState<FounderCircuitState | null>(null);
   const [circuitLoading, setCircuitLoading] = useState(false);
   const [circuitFailure, setCircuitFailure] = useState<string | null>(null);
@@ -243,10 +245,20 @@ export function FounderControlCenter() {
   const inspectCustomer = async (summary: FounderCustomerSummary) => {
     setCustomerLoading(true);
     setCustomerFailure(null);
+    setCustomerPortfolio(null);
     try {
       const detail = await getFounderCustomer(summary.id);
       setCustomer(detail);
-      if (detail.workspaceId) setCircuit(await getFounderCircuit(detail.workspaceId));
+      const [portfolioResult, circuitResult] = await Promise.allSettled([
+        getFounderCustomerPortfolio(summary.id),
+        detail.workspaceId ? getFounderCircuit(detail.workspaceId) : Promise.resolve(null),
+      ]);
+      if (portfolioResult.status === 'fulfilled') setCustomerPortfolio(portfolioResult.value);
+      if (circuitResult.status === 'fulfilled' && circuitResult.value) setCircuit(circuitResult.value);
+      const failedResult = [portfolioResult, circuitResult].find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (failedResult) throw failedResult.reason;
     } catch (cause) {
       setCustomerFailure(errorFrom(cause, 'Customer inspection is unavailable.'));
     } finally {
@@ -397,7 +409,7 @@ export function FounderControlCenter() {
           {customerFailure ? <p className={styles.formError} role="alert">{customerFailure.message}</p> : null}
           {customers.length === 0 && !customerLoading && customerQuery ? <p className={styles.message}>No matching customer accounts.</p> : null}
           {customers.length > 0 ? <ul className={styles.errors} aria-label="Customer results">{customers.map((item) => <li key={item.id}><strong>{item.name}</strong> {item.email} <button type="button" onClick={() => void inspectCustomer(item)}>Inspect</button></li>)}</ul> : null}
-          {customer ? <article className={styles.healthCard} aria-label="Customer detail"><div className={styles.cardHeader}><div><span className={styles.kicker}>Authorized inspection</span><h2>{customer.name}</h2><p>{customer.email}</p></div><StatusBadge value={customer.supportStatus} /></div><dl className={styles.metaList}><div><dt>Account</dt><dd>{customer.isActive ? 'Active' : 'Inactive'} · {customer.isVerified ? 'Verified' : 'Unverified'}</dd></div><div><dt>Workspace</dt><dd>{customer.workspaceId ?? 'Unavailable'}</dd></div><div><dt>Withdrawal states</dt><dd>{customer.withdrawalStatuses.join(', ') || 'None recorded'}</dd></div></dl><h3>Portfolio balances</h3>{customer.portfolioBalances.length ? <ul>{customer.portfolioBalances.map((balance) => <li key={balance.asset}>{balance.asset}: {balance.authoritativeBalance} (available {balance.availableBalance})</li>)}</ul> : <p>No balances returned.</p>}</article> : null}
+          {customer ? <article className={styles.healthCard} aria-label="Customer detail"><div className={styles.cardHeader}><div><span className={styles.kicker}>Authorized inspection</span><h2>{customer.name}</h2><p>{customer.email}</p></div><StatusBadge value={customer.supportStatus} /></div><dl className={styles.metaList}><div><dt>Account</dt><dd>{customer.isActive ? 'Active' : 'Inactive'} · {customer.isVerified ? 'Verified' : 'Unverified'}</dd></div><div><dt>Workspace</dt><dd>{customer.workspaceId ?? 'Unavailable'}</dd></div><div><dt>Withdrawal states</dt><dd>{customer.withdrawalStatuses.join(', ') || 'None recorded'}</dd></div></dl><h3>Authoritative portfolio</h3>{customerPortfolio ? <><h4>Balances</h4>{customerPortfolio.balances.length ? <ul>{customerPortfolio.balances.map((balance) => <li key={balance.asset}>{balance.asset}: {balance.authoritativeBalance} (available {balance.availableBalance})</li>)}</ul> : <p>No balances returned.</p>}<h4>Positions</h4>{customerPortfolio.positions.length ? <ul>{customerPortfolio.positions.map((position) => <li key={position.asset}>{position.asset}: {position.quantity} · average cost {position.averageCost ?? 'Unavailable'} · unrealized P&amp;L {position.unrealizedPnl}</li>)}</ul> : <p>No positions returned.</p>}<h4>Recent ledger activity</h4>{customerPortfolio.recentLedgerActivity.length ? <ul>{customerPortfolio.recentLedgerActivity.slice(0, 8).map((item) => <li key={item.id}>{item.transactionType} · {item.status} · {item.reference ?? 'No reference'}</li>)}</ul> : <p>No ledger activity returned.</p>}</> : <p>Authoritative portfolio data is unavailable.</p>}</article> : null}
         </section>
       ) : null}
 

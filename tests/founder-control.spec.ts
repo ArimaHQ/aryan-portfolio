@@ -113,6 +113,16 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
   await page.route('**/api/v1/support/customers**', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify(route.request().method() === 'GET' && new URL(route.request().url()).pathname.endsWith('/customers') ? [{ id: 'customer-1', name: 'Customer One', email: 'customer@example.com', is_active: true, is_verified: true, roles: ['member'], created_at: '2026-08-11T00:00:00Z', last_login_at: null, last_login_ip: null, workspace_id: 'workspace-1' }] : { id: 'customer-1', name: 'Customer One', email: 'customer@example.com', is_active: true, is_verified: true, roles: ['member'], created_at: '2026-08-11T00:00:00Z', last_login_at: null, last_login_ip: null, workspace_id: 'workspace-1', password_changed_at: null, security_events: [], sessions: [], support_status: 'active', issue_indicators: [], portfolio_balances: [], withdrawal_statuses: [] }) });
   });
+  await page.route('**/portfolio/operations/customers/*', async (route) => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      portfolio_id: 'portfolio-1',
+      workspace_id: 'workspace-1',
+      user_id: 'customer-1',
+      balances: [{ asset: 'ETH', authoritative_balance: '2.5', available_balance: '2.5', reserved_balance: '0', pending_balance: '0' }],
+      positions: [{ asset: 'BTC', quantity: '0.25', average_cost: '60000', realized_pnl: '0', unrealized_pnl: '1250' }],
+      recent_ledger_activity: [{ id: 'transaction-1', transaction_type: 'deposit', status: 'posted', reference: 'deposit-1', source: 'ledger', created_at: '2026-08-11T09:00:00Z', posted_at: '2026-08-11T09:00:00Z' }],
+    }) });
+  });
   await page.route('**/api/v1/withdrawals/operations/circuit/**', async (route) => {
     if (route.request().method() === 'POST') state.circuitHeaders = route.request().headers();
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ workspace_id: 'workspace-1', state: route.request().method() === 'POST' ? 'paused' : 'enabled', reason: 'test', changed_at: '2026-08-11T09:00:00Z' }) });
@@ -164,6 +174,8 @@ test('searches customer inspection and protects circuit mutations with CSRF', as
   await page.getByRole('button', { name: 'Search customers' }).click();
   await page.getByRole('button', { name: 'Inspect' }).click();
   await expect(page.getByRole('heading', { name: 'Customer One' })).toBeVisible();
+  await expect(page.getByText('BTC: 0.25')).toBeVisible();
+  await expect(page.getByText(/deposit · posted · deposit-1/)).toBeVisible();
   await expect(page.getByText('Circuit breaker')).toBeVisible();
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Pause withdrawals' }).click();
