@@ -73,6 +73,28 @@ export type FounderTrade = {
   createdAt: string;
 };
 
+export type FounderDepositInput = {
+  asset: 'USD';
+  amount: string;
+  reference: string;
+  reason: string;
+  idempotency_key: string;
+};
+
+export type FounderDeposit = {
+  id: string;
+  workspaceId: string;
+  targetUserId: string;
+  founderActorId: string;
+  asset: string;
+  amount: string;
+  reference: string;
+  reason: string;
+  idempotencyKey: string;
+  financialTransactionId: string;
+  financialAccountId: string;
+};
+
 type JsonRecord = Record<string, unknown>;
 
 const asRecord = (value: unknown): JsonRecord | null => (
@@ -213,6 +235,23 @@ const parseTrade = (value: unknown, field = 'trade'): FounderTrade => {
   };
 };
 
+const parseDeposit = (payload: unknown): FounderDeposit => {
+  const record = unwrap(payload);
+  return {
+    id: requiredString(record.id, 'id'),
+    workspaceId: requiredString(record.workspace_id, 'workspace_id'),
+    targetUserId: requiredString(record.target_user_id, 'target_user_id'),
+    founderActorId: requiredString(record.founder_actor_id, 'founder_actor_id'),
+    asset: requiredString(record.asset, 'asset'),
+    amount: requiredString(record.amount, 'amount'),
+    reference: requiredString(record.reference, 'reference'),
+    reason: requiredString(record.reason, 'reason'),
+    idempotencyKey: requiredString(record.idempotency_key, 'idempotency_key'),
+    financialTransactionId: requiredString(record.financial_transaction_id, 'financial_transaction_id'),
+    financialAccountId: requiredString(record.financial_account_id, 'financial_account_id'),
+  };
+};
+
 export async function getCustomerPortfolio(): Promise<CustomerPortfolio> {
   return parsePortfolio(await apiClient<unknown>('/api/v1/portfolio'));
 }
@@ -258,5 +297,12 @@ export async function reverseFounderCustomerTrade(userId: string, tradeId: strin
   return parseTrade(await apiClient<unknown>(
     `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/trades/${encodeURIComponent(tradeId)}/reverse`,
     { method: 'POST', body: { reason, idempotency_key: idempotencyKey } },
+  ));
+}
+
+export async function recordFounderCustomerDeposit(userId: string, input: FounderDepositInput): Promise<FounderDeposit> {
+  return parseDeposit(await apiClient<unknown>(
+    `/api/v1/portfolio/operations/customers/${encodeURIComponent(userId)}/deposits`,
+    { method: 'POST', body: input },
   ));
 }

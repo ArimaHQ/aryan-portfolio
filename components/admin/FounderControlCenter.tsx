@@ -7,6 +7,7 @@ import {
   getFounderCustomerPortfolio,
   getFounderCustomerFinancialState,
   getFounderCustomerTrades,
+  recordFounderCustomerDeposit,
   recordFounderCustomerTrade,
   reverseFounderCustomerTrade,
   type CustomerPortfolio,
@@ -57,6 +58,13 @@ const errorFrom = (cause: unknown, fallback: string): LoadFailure => {
 const titleCase = (value: string) => value.replaceAll('_', ' ');
 
 type TradeDraft = Omit<FounderTradeInput, 'idempotency_key'> & { idempotency_key: string };
+type DepositDraft = {
+  asset: 'USD';
+  amount: string;
+  reference: string;
+  reason: string;
+  idempotency_key: string;
+};
 
 const newIdempotencyKey = () => globalThis.crypto?.randomUUID?.() ?? `founder-trade-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -69,6 +77,14 @@ const newTradeDraft = (): TradeDraft => ({
   fee_amount: '0',
   executed_at: new Date().toISOString().slice(0, 16),
   reason: 'Founder manual accounting entry: ',
+  idempotency_key: newIdempotencyKey(),
+});
+
+const newDepositDraft = (): DepositDraft => ({
+  asset: 'USD',
+  amount: '1.00',
+  reference: 'STEP-4A-10-DEPOSIT-SMOKE',
+  reason: 'Production accounting smoke test',
   idempotency_key: newIdempotencyKey(),
 });
 
@@ -189,6 +205,11 @@ export function FounderControlCenter() {
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [tradeNotice, setTradeNotice] = useState<string | null>(null);
   const [tradeMutationLoading, setTradeMutationLoading] = useState(false);
+  const [depositDraft, setDepositDraft] = useState<DepositDraft>(() => newDepositDraft());
+  const [depositConfirmation, setDepositConfirmation] = useState<DepositDraft | null>(null);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [depositNotice, setDepositNotice] = useState<string | null>(null);
+  const [depositMutationLoading, setDepositMutationLoading] = useState(false);
   const [reversalTarget, setReversalTarget] = useState<FounderTrade | null>(null);
   const [reversalReason, setReversalReason] = useState('');
   const [reversalIdempotencyKey, setReversalIdempotencyKey] = useState('');
@@ -310,6 +331,10 @@ export function FounderControlCenter() {
     setTradeError(null);
     setTradeNotice(null);
     setTradeConfirmation(null);
+    setDepositDraft(newDepositDraft());
+    setDepositConfirmation(null);
+    setDepositError(null);
+    setDepositNotice(null);
     setReversalTarget(null);
     setTradeDraft(newTradeDraft());
     try {
@@ -376,6 +401,61 @@ export function FounderControlCenter() {
     setReversalReason('');
     setReversalIdempotencyKey(newIdempotencyKey());
     setReversalTarget(trade);
+  };
+
+  const updateDepositDraft = <K extends keyof DepositDraft>(field: K, value: DepositDraft[K]) => {
+    setDepositDraft((current) => ({ ...current, [field]: value }));
+    setDepositError(null);
+    setDepositNotice(null);
+  };
+
+  const requestDepositConfirmation = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setDepositError(null);
+    setDepositNotice(null);
+    if (!depositDraft.amount || Number(depositDraft.amount) <= 0) {
+      setDepositError('Enter a positive deposit amount.');
+      return;
+    }
+    if (!depositDraft.reference.trim()) {
+      setDepositError('A deposit reference is required.');
+      return;
+    }
+    if (!depositDraft.reason.trim()) {
+      setDepositError('A deposit reason is required.');
+      return;
+    }
+    if (depositDraft.idempotency_key.length < 16) {
+      setDepositError('The idempotency key is invalid.');
+      return;
+    }
+    setDepositConfirmation(depositDraft);
+  };
+
+  const recordDeposit = async () => {
+    if (!customer || !depositConfirmation) return;
+    setDepositMutationLoading(true);
+    setDepositError(null);
+    setDepositNotice(null);
+    try {
+      await recordFounderCustomerDeposit(customer.id, {
+        ...depositConfirmation,
+        amount: depositConfirmation.amount.trim(),
+        reference: depositConfirmation.reference.trim(),
+        reason: depositConfirmation.reason.trim(),
+      });
+      await refreshCustomerData(customer.id, customer.workspaceId);
+      setDepositNotice('Deposit recorded and persisted. Financial state was refreshed from the backend.');
+      setDepositDraft(newDepositDraft());
+      setDepositConfirmation(null);
+    } catch (cause) {
+      const failure = errorFrom(cause, 'Deposit recording failed. The same idempotency key remains available for retry.');
+      setDepositError(failure.status === undefined
+        ? 'The deposit response was ambiguous. Verify persisted financial state before retrying.'
+        : failure.message);
+    } finally {
+      setDepositMutationLoading(false);
+    }
   };
 
   const reverseTrade = async () => {
@@ -559,6 +639,36 @@ export function FounderControlCenter() {
               {customerFinancialState.positions.length ? <ul>{customerFinancialState.positions.map((position) => <li key={position.asset}>{position.asset}: {position.quantity}</li>)}</ul> : <p>No persisted positions returned.</p>}
               <p role="status">{customerFinancialState.financialAccounts.length === 0 && customerFinancialState.positions.length === 0 && customerFinancialState.ledgerActivityCount === 0 && customerFinancialState.settledTradeCount === 0 ? 'Empty persisted financial state.' : 'Persisted financial state returned.'}</p>
             </article>
+          ) : null}
+          {customer ? (
+            <section className={styles.section} aria-labelledby="deposit-heading">
+              <div className={styles.sectionHeading}>
+                <div><p className={styles.eyebrow}>Founder manual funding</p><h2 id="deposit-heading">Record a customer deposit</h2></div>
+                <span>Founder-only financial operation</span>
+              </div>
+              <p className={styles.message}>This creates a real USD ledger credit from the existing clearing/source account. It does not create a trade or position.</p>
+              <form className={styles.form} onSubmit={requestDepositConfirmation}>
+                <label>Asset<select value={depositDraft.asset} disabled><option value="USD">USD</option></select></label>
+                <label>Amount<input inputMode="decimal" value={depositDraft.amount} onChange={(event) => updateDepositDraft('amount', event.target.value)} required /></label>
+                <label>Reference<input value={depositDraft.reference} onChange={(event) => updateDepositDraft('reference', event.target.value)} maxLength={160} required /></label>
+                <label className={styles.notes}>Reason<input value={depositDraft.reason} onChange={(event) => updateDepositDraft('reason', event.target.value)} maxLength={1000} required /></label>
+                {depositError ? <p className={styles.formError} role="alert">{depositError}</p> : null}
+                {depositNotice ? <p className={styles.formNotice} role="status">{depositNotice}</p> : null}
+                <div className={styles.formActions}><button type="submit" disabled={depositMutationLoading}>Review deposit</button><p>Confirmation is required. Retries keep the same idempotency key.</p></div>
+              </form>
+              {depositConfirmation ? (
+                <div className={styles.healthCard} role="dialog" aria-label="Confirm manual deposit">
+                  <span className={styles.kicker}>Confirm persisted funding</span>
+                  <h3>{depositConfirmation.amount} {depositConfirmation.asset} deposit</h3>
+                  <dl className={styles.metaList}>
+                    <div><dt>Customer</dt><dd>{customer.name}</dd></div>
+                    <div><dt>Reference</dt><dd>{depositConfirmation.reference}</dd></div>
+                    <div><dt>Reason</dt><dd>{depositConfirmation.reason}</dd></div>
+                  </dl>
+                  <div className={styles.formActions}><button type="button" onClick={() => void recordDeposit()} disabled={depositMutationLoading}>{depositMutationLoading ? 'Recording…' : 'Confirm and record deposit'}</button><button type="button" onClick={() => setDepositConfirmation(null)} disabled={depositMutationLoading}>Cancel</button></div>
+                </div>
+              ) : null}
+            </section>
           ) : null}
           {customer ? (
             <section className={styles.section} aria-labelledby="trade-recording-heading">

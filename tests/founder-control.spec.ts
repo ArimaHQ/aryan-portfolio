@@ -4,14 +4,17 @@ type FounderTestState = {
   observationHeaders: Record<string, string> | null;
   observationBody: Record<string, unknown> | null;
   circuitHeaders: Record<string, string> | null;
+  depositHeaders: Record<string, string> | null;
+  depositBody: Record<string, unknown> | null;
   tradeHeaders: Record<string, string> | null;
   tradeBody: Record<string, unknown> | null;
   financialStateRequests: string[];
+  depositRequests: string[];
   mutationRequests: string[];
 };
 
-async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean; mfaRequired?: boolean; financialStateFailure?: boolean } = {}) {
-  const state: FounderTestState = { observationHeaders: null, observationBody: null, circuitHeaders: null, tradeHeaders: null, tradeBody: null, financialStateRequests: [], mutationRequests: [] };
+async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: boolean; mfaRequired?: boolean; financialStateFailure?: boolean; depositFailure?: boolean; depositAmbiguous?: boolean } = {}) {
+  const state: FounderTestState = { observationHeaders: null, observationBody: null, circuitHeaders: null, depositHeaders: null, depositBody: null, tradeHeaders: null, tradeBody: null, financialStateRequests: [], depositRequests: [], mutationRequests: [] };
   await page.route('**/api/v1/auth/**', async (route) => {
     const pathname = new URL(route.request().url()).pathname;
     if (pathname.endsWith('/refresh')) {
@@ -130,6 +133,26 @@ async function mockAuthenticatedFounderApi(page: Page, options: { forbidden?: bo
       financial_accounts: [], positions: [], ledger_activity_count: 0, settled_trade_count: 0,
     }) });
   });
+  await page.route('**/portfolio/operations/customers/*/deposits', async (route) => {
+    const request = route.request();
+    state.depositRequests.push(new URL(request.url()).pathname);
+    state.mutationRequests.push(request.url());
+    state.depositHeaders = request.headers();
+    state.depositBody = request.postDataJSON() as Record<string, unknown>;
+    if (options.depositAmbiguous) {
+      await route.abort('failed');
+      return;
+    }
+    if (options.depositFailure && state.depositRequests.length === 1) {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Deposit unavailable' }) });
+      return;
+    }
+    await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({
+      id: 'deposit-1', workspace_id: 'workspace-1', target_user_id: 'customer-1', founder_actor_id: 'founder-1',
+      asset: 'USD', amount: '1.00', reference: state.depositBody?.reference, reason: state.depositBody?.reason,
+      idempotency_key: state.depositBody?.idempotency_key, financial_transaction_id: 'transaction-1', financial_account_id: 'account-1',
+    }) });
+  });
   await page.route('**/portfolio/operations/customers/*/trades', async (route) => {
     const request = route.request();
     if (request.method() === 'POST') {
@@ -219,6 +242,7 @@ test('shows a server-forbidden state without attempting client-side role inferen
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Founder authorization is required.' })).toBeVisible();
   await expect(page.getByText('Founder access is required')).toBeVisible();
+  await expect(page.getByText('Record a customer deposit')).not.toBeVisible();
 });
 
 test('shows privileged MFA enrollment link while preserving the retry action', async ({ page }) => {
@@ -241,8 +265,8 @@ test('searches customer inspection and protects circuit mutations with CSRF', as
   await expect(page.getByText(/deposit · posted · deposit-1/)).toBeVisible();
   await page.getByLabel('Quantity', { exact: true }).fill('0.000001');
   await page.getByLabel('Price', { exact: true }).fill('100');
-  await page.getByLabel('Reference', { exact: false }).fill('test-reference');
-  await page.getByLabel('Reason', { exact: true }).fill('Founder manual accounting entry');
+  await page.getByRole('textbox', { name: 'Reference Optional' }).fill('test-reference');
+  await page.getByRole('region', { name: 'Record persisted accounting' }).getByLabel('Reason', { exact: true }).fill('Founder manual accounting entry');
   await page.getByRole('button', { name: 'Review trade' }).click();
   await expect(page.getByRole('dialog', { name: 'Confirm manual trade' })).toBeVisible();
   await page.getByRole('button', { name: 'Confirm and record trade' }).click();
@@ -257,4 +281,51 @@ test('searches customer inspection and protects circuit mutations with CSRF', as
   await page.getByRole('button', { name: 'Pause withdrawals' }).click();
   await expect(page.getByRole('button', { name: 'Enable withdrawals' })).toBeVisible();
   expect(state.circuitHeaders?.['x-csrf-token']).toBe('founder-csrf-token');
+});
+
+test('records a confirmed deposit for the selected customer and refreshes financial state', async ({ page }) => {
+  const state = await mockAuthenticatedFounderApi(page);
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await page.getByRole('button', { name: 'Review deposit' }).click();
+  await expect(page.getByRole('dialog', { name: 'Confirm manual deposit' })).toBeVisible();
+  expect(state.depositRequests).toEqual([]);
+  await page.getByRole('button', { name: 'Confirm and record deposit' }).click();
+  await expect(page.getByText('Deposit recorded and persisted. Financial state was refreshed from the backend.')).toBeVisible();
+  expect(state.depositRequests).toEqual(['/api/v1/portfolio/operations/customers/customer-1/deposits']);
+  expect(state.depositHeaders?.['x-csrf-token']).toBe('founder-csrf-token');
+  expect(state.depositBody).toMatchObject({ asset: 'USD', amount: '1.00', reference: 'STEP-4A-10-DEPOSIT-SMOKE', reason: 'Production accounting smoke test' });
+  expect(state.depositBody?.idempotency_key).toEqual(expect.any(String));
+  expect(state.financialStateRequests.length).toBeGreaterThanOrEqual(2);
+});
+
+test('keeps the same deposit idempotency key when retrying a failed request', async ({ page }) => {
+  const state = await mockAuthenticatedFounderApi(page, { depositFailure: true });
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await page.getByRole('button', { name: 'Review deposit' }).click();
+  await page.getByRole('button', { name: 'Confirm and record deposit' }).click();
+  await expect(page.getByText('Deposit unavailable', { exact: true })).toBeVisible();
+  const firstKey = state.depositBody?.idempotency_key;
+  await page.getByRole('button', { name: 'Review deposit' }).click();
+  await page.getByRole('button', { name: 'Confirm and record deposit' }).click();
+  await expect(page.getByText('Deposit recorded and persisted. Financial state was refreshed from the backend.')).toBeVisible();
+  expect(state.depositRequests).toHaveLength(2);
+  expect(state.depositBody?.idempotency_key).toBe(firstKey);
+});
+
+test('does not automatically retry an ambiguous deposit response', async ({ page }) => {
+  const state = await mockAuthenticatedFounderApi(page, { depositAmbiguous: true });
+  await page.goto('/admin');
+  await page.getByLabel('Search by name, email, or account ID').fill('customer@example.com');
+  await page.getByRole('button', { name: 'Search customers' }).click();
+  await page.getByRole('button', { name: 'Inspect' }).click();
+  await page.getByRole('button', { name: 'Review deposit' }).click();
+  await page.getByRole('button', { name: 'Confirm and record deposit' }).click();
+  await expect(page.getByText('The deposit response was ambiguous. Verify persisted financial state before retrying.', { exact: true })).toBeVisible();
+  expect(state.depositRequests).toHaveLength(1);
 });
