@@ -1,0 +1,49 @@
+name: Deploy frontend to Cloudflare
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout approved frontend release
+        uses: actions/checkout@v4
+        with:
+          ref: 303567793e24c6aaaaa326b80f2676bda712809b
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npm run test:unit
+
+      - name: Official OpenNext production build
+        run: npm run build
+
+      - name: Validate Cloudflare artifact
+        run: test -s .open-next/worker.js && test -d .open-next/assets
+
+      - name: Deploy existing Worker
+        run: npm run deploy:worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Verify canonical frontend
+        run: test "$(curl -fsS -o /dev/null -w '%{http_code}' https://arimafinance.xyz)" = "200"
