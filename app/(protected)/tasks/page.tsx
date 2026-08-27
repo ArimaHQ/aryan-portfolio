@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import { listTasks, createTask, updateTask, deleteTask } from '@/lib/tasks-api';
 import type { TaskResponse, TaskCreate, TaskUpdate } from '@/lib/tasks-api';
 
@@ -163,7 +164,7 @@ export default function TasksPage() {
           <Link href="/dashboard"><i>01</i>Dashboard</Link>
           <Link href="/projects"><i>02</i>Projects</Link>
           <Link className="active" href="/tasks"><i>03</i>Tasks</Link>
-          <Link href="/executive"><i>04</i>Executive mode</Link>
+          <SuperAdminLink href="/executive"><i>04</i>Executive mode</SuperAdminLink>
           <Link href="/growth-studio"><i>05</i>Growth studio</Link>
         </nav>
       </aside>

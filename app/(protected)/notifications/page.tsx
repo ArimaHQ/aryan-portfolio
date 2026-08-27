@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import {
   listNotifications,
   getUnreadCount,
@@ -125,7 +126,7 @@ export default function NotificationsPage() {
           <Link href="/tasks"><i>03</i>Tasks</Link>
           <Link href="/activity"><i>04</i>Activity</Link>
           <Link className="active" href="/notifications"><i>05</i>Notifications</Link>
-          <Link href="/executive"><i>06</i>Executive mode</Link>
+          <SuperAdminLink href="/executive"><i>06</i>Executive mode</SuperAdminLink>
           <Link href="/growth-studio"><i>07</i>Growth studio</Link>
         </nav>
       </aside>

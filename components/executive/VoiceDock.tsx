@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 
 type Props = {
   context: 'portfolio' | 'quant' | 'growth';
@@ -99,7 +99,7 @@ export function VoiceDock({ context }: Props) {
                 : 'Sign in to access private voice intelligence.'}
             </p>
           )}
-          <Link href="/executive">Executive</Link>
+          <SuperAdminLink href="/executive">Executive</SuperAdminLink>
           {voiceAvailable && voice.response && <p aria-live="polite">{voice.response}</p>}
         </div>
       )}

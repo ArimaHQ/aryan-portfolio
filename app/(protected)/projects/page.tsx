@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import { listProjects, createProject, updateProject, deleteProject } from '@/lib/projects-api';
 import type { ProjectResponse, ProjectCreate, ProjectUpdate } from '@/lib/projects-api';
 
@@ -142,7 +143,7 @@ export default function ProjectsPage() {
         <nav>
           <Link href="/dashboard"><i>01</i>Dashboard</Link>
           <Link className="active" href="/projects"><i>02</i>Projects</Link>
-          <Link href="/executive"><i>03</i>Executive mode</Link>
+          <SuperAdminLink href="/executive"><i>03</i>Executive mode</SuperAdminLink>
           <Link href="/growth-studio"><i>04</i>Growth studio</Link>
         </nav>
       </aside>

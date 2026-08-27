@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import { listActivities } from '@/lib/activity-api';
 import type { ActivityResponse } from '@/lib/activity-api';
 
@@ -75,7 +76,7 @@ export default function ActivityPage() {
           <Link href="/projects"><i>02</i>Projects</Link>
           <Link href="/tasks"><i>03</i>Tasks</Link>
           <Link className="active" href="/activity"><i>04</i>Activity</Link>
-          <Link href="/executive"><i>05</i>Executive mode</Link>
+          <SuperAdminLink href="/executive"><i>05</i>Executive mode</SuperAdminLink>
           <Link href="/growth-studio"><i>06</i>Growth studio</Link>
         </nav>
       </aside>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { VoiceDock } from './VoiceDock';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import styles from './QuantResearchExperience.module.css';
 
 type PipelineState = 'connected' | 'dependency' | 'restricted';
@@ -67,10 +68,10 @@ export function QuantResearchExperience() {
       <a className={styles.skipLink} href="#quant-main">Skip to Quant Lab content</a>
 
       <header className={styles.header}>
-        <Link href="/executive" className={styles.brand} aria-label="Return to Executive OS">
+        <SuperAdminLink href="/executive" className={styles.brand} aria-label="Return to Executive OS">
           <b>AF</b>
           <span><strong>ARIMA</strong>EXECUTIVE OS</span>
-        </Link>
+        </SuperAdminLink>
         <div className={styles.headerMeta}>
           <span className={styles.privateStatus}><i />AUTHENTICATED RESEARCH SPACE</span>
           <span>QUANT LAB / READ ONLY</span>
@@ -243,7 +244,7 @@ export function QuantResearchExperience() {
       </div>
 
       <nav className={styles.dock} aria-label="Executive OS modules">
-        <Link href="/executive">Executive</Link>
+        <SuperAdminLink href="/executive">Executive</SuperAdminLink>
         <Link className={styles.active} href="/quant-research">Quant Lab</Link>
         <Link href="/growth-studio">Growth</Link>
       </nav>

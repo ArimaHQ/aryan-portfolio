@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { VoiceDock } from './VoiceDock';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 
 type Status = 'pending' | 'approved' | 'rejected' | 'revision';
 
@@ -21,7 +22,7 @@ export function GrowthStudioExperience() {
   return (
     <main className="growth-world">
       <header className="module-header">
-        <Link href="/executive"><b>AF</b><span>EXECUTIVE OS</span></Link>
+        <SuperAdminLink href="/executive"><b>AF</b><span>EXECUTIVE OS</span></SuperAdminLink>
         <div><strong>PRIVATE / MOCK WORKSPACE</strong><span>GROWTH STUDIO</span></div>
       </header>
       <section className="growth-hero" id="today">
@@ -44,7 +45,7 @@ export function GrowthStudioExperience() {
         ))}
       </section>
       <section className="growth-history"><span>EXECUTION HISTORY</span><p>No external actions have run. This milestone does not publish, email, post or contact anyone.</p></section>
-      <nav className="module-dock"><Link href="/executive">Executive</Link><Link href="/quant-research">Quant Research</Link><Link className="active" href="/growth-studio">Growth</Link></nav>
+      <nav className="module-dock"><SuperAdminLink href="/executive">Executive</SuperAdminLink><Link href="/quant-research">Quant Research</Link><Link className="active" href="/growth-studio">Growth</Link></nav>
       <VoiceDock context="growth" />
     </main>
   );

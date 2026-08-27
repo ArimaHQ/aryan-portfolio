@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/providers';
+import { SuperAdminLink } from '@/components/navigation/SuperAdminLink';
 import { getCustomerPortfolio, type CustomerPortfolio } from '@/lib/portfolio-api';
 import {
   getWorkspaceDashboardSummary,
@@ -284,7 +285,7 @@ export function WorkspaceDashboard() {
         <nav>
           <Link className="active" href="/dashboard"><i>01</i>Dashboard</Link>
           <Link href="/withdrawal-request"><i>02</i>Withdrawal Request</Link>
-          <Link href="/executive"><i>03</i>Avatar / AI</Link>
+          <SuperAdminLink href="/executive"><i>03</i>Avatar / AI</SuperAdminLink>
           <Link href="/projects"><i>04</i>Projects</Link>
           <Link href="/tasks"><i>05</i>Tasks</Link>
           <Link href="/settings"><i>06</i>Settings</Link>
