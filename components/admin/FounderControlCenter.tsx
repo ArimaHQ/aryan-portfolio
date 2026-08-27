@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ApiClientError } from '@/lib/api-client';
+import { ApiClientError, apiClient } from '@/lib/api-client';
 import {
   getFounderCustomerPortfolio,
   getFounderCustomerFinancialState,
@@ -217,6 +217,23 @@ export function FounderControlCenter() {
   const [circuit, setCircuit] = useState<FounderCircuitState | null>(null);
   const [circuitLoading, setCircuitLoading] = useState(false);
   const [circuitFailure, setCircuitFailure] = useState<string | null>(null);
+  const [groqSmokeLoading, setGroqSmokeLoading] = useState(false);
+  const [groqSmokeResult, setGroqSmokeResult] = useState<string | null>(null);
+
+  const runGroqSmoke = async () => {
+    setGroqSmokeLoading(true);
+    setGroqSmokeResult(null);
+    try {
+      const result = await apiClient<unknown>('/api/v1/admin/founder/diagnostics/groq-smoke', {
+        method: 'POST',
+      });
+      setGroqSmokeResult(JSON.stringify(result));
+    } catch (cause) {
+      setGroqSmokeResult(errorFrom(cause, 'Groq smoke test failed.').message);
+    } finally {
+      setGroqSmokeLoading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -513,6 +530,19 @@ export function FounderControlCenter() {
           {isLoading ? 'Refreshing…' : 'Refresh status'}
         </button>
       </section>
+
+      {!forbidden ? <section className={styles.section} aria-labelledby="groq-smoke-heading">
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className={styles.eyebrow}>Temporary diagnostic</p>
+            <h2 id="groq-smoke-heading">Groq provider smoke test</h2>
+          </div>
+          <button type="button" onClick={() => void runGroqSmoke()} disabled={groqSmokeLoading}>
+            {groqSmokeLoading ? 'Running…' : 'Run once'}
+          </button>
+        </div>
+        {groqSmokeResult ? <pre aria-live="polite">{groqSmokeResult}</pre> : null}
+      </section> : null}
 
       {forbidden ? (
         <section className={styles.state} aria-live="polite">
