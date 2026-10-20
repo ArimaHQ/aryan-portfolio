@@ -573,14 +573,15 @@ export function PhaseOneFilm() {
           <div className="founder-story">
             {founderStages.map((stageData, index) => <article ref={(node) => { if (node) founderStageNodes.current[index] = node; }} className={`founder-stage founder-stage-${index + 1}`} key={stageData[0]}><small>0{index + 1}</small><h3>{stageData[0]}</h3><div>{stageData.slice(1).map((line) => <span key={line}>{line}</span>)}</div>
               {index === 0 && <p>BSc Avionics Engineering<br/><b>National Aviation University, Kyiv</b></p>}
-              {index === 1 && <p>MSc Finance &amp; Accounting<br/><b>Anglia Ruskin University, London</b></p>}
+              {index === 1 && <p>PhD in Finance and Economics<br/><br/>MSc Finance &amp; Accounting<br/><b>Anglia Ruskin University, London</b><br/><br/>Passed Level III of the CFA Program.</p>}
             </article>)}
           </div>
 
           <div ref={experienceField} className="experience-field">
             <div><small>PROFESSIONAL ENVIRONMENTS</small><h3>Research translated into execution.</h3></div>
-            <span className="experience-marker marker-a"><b>Bank of England</b><i>Financial Markets Research</i></span>
-            <span className="experience-marker marker-b"><b>EY</b><i>Financial Advisory</i></span>
+            <span className="experience-marker marker-a"><b>Bank of England</b><i>Research Analyst · Strategic gold reserves</i></span>
+            <span className="experience-marker marker-b"><b>EY</b><i>Junior Accountant</i></span>
+            <span className="experience-marker marker-e"><b>Artin &amp; Partners</b><i>Investment Banking Analyst</i></span>
             <span className="experience-marker marker-c"><b>Samuel &amp; Co Trading</b><i>FX Trading</i></span>
             <span className="experience-marker marker-d"><b>AEXT</b><i>Technology Entrepreneurship</i></span>
             <p>Organisation names refer to the founder&apos;s professional background and do not imply endorsement or affiliation with Arima Finance.</p>

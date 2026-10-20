@@ -389,6 +389,76 @@ footer{padding:60px 20px calc(60px + env(safe-area-inset-bottom,0px));text-align
 .lite .rv{filter:none}
 .d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}
 .reduced .rv{opacity:1;transform:none;filter:none;transition:none}
+/* ---------- ARIMA guide (end of Journey) ---------- */
+#guide{--g:var(--gold)}
+#guide [hidden]{display:none!important}
+.guide{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(20px,3vw,44px);padding:clamp(18px,3vw,36px);margin-top:28px;align-items:start}
+.guide>*{min-width:0}
+.guide-stage{display:grid;justify-items:center;text-align:center;gap:10px}
+#guideAvatar{width:min(300px,70vw);height:auto;aspect-ratio:1;display:block}
+.guide-name{display:grid;gap:2px}
+.guide-name b{font-weight:500;letter-spacing:.2em;text-transform:uppercase;font-size:13px}
+.guide-name span{font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgb(var(--g))}
+.guide-state{min-height:1.4em;font-size:13px;color:var(--muted)}
+.guide-ctrls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.guide-lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px}
+.guide-lang button,.gbtn{font:inherit;font-size:13px;color:var(--fg);background:none;border:0;border-radius:999px;padding:8px 14px;cursor:pointer;min-height:40px}
+.guide-lang button[aria-pressed="true"]{background:rgba(var(--g),.22);box-shadow:inset 0 0 0 1px rgba(var(--g),.6)}
+.gbtn{border:1px solid var(--line);background:rgba(255,255,255,.05)}
+.gbtn[aria-pressed="true"]{border-color:rgba(var(--g),.7);background:rgba(var(--g),.14)}
+.gbtn:hover,.guide-lang button:hover{background:rgba(255,255,255,.1)}
+.guide-note{font-size:12.5px;color:var(--faint);max-width:30em}
+.guide-talk{display:grid;gap:14px}
+.guide-log{list-style:none;margin:0;padding:0 4px 0 0;display:grid;gap:10px;max-height:min(46vh,420px);overflow:auto;overscroll-behavior:contain;scroll-behavior:smooth}
+.guide-log li{max-width:92%;padding:12px 15px;border-radius:16px;font-size:15.5px;line-height:1.55;overflow-wrap:anywhere}
+.guide-log li.g{background:rgba(255,255,255,.07);border:1px solid var(--line);justify-self:start}
+.guide-log li.u{background:rgba(var(--g),.16);border:1px solid rgba(var(--g),.35);justify-self:end}
+.guide-log li a{color:rgb(var(--hi))}
+.guide-log li .src{display:block;margin-top:6px;font-size:12px;color:var(--faint)}
+.guide-chips{display:flex;flex-wrap:wrap;gap:8px}
+.guide-chips button{font:inherit;font-size:13.5px;color:var(--fg);background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;min-height:40px}
+.guide-chips button:hover{border-color:rgba(var(--g),.7)}
+.guide-chips button.key{border-color:rgba(var(--g),.7);background:rgba(var(--g),.14)}
+.guide-form{display:grid;gap:10px}
+.guide-row input,.gportal input{width:100%;font:inherit;font-size:16px;color:var(--fg);background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:13px 15px;min-height:48px}
+.guide-row input:focus,.gportal input:focus{outline:2px solid rgba(var(--g),.85);outline-offset:2px}
+.guide-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.guide-err{min-height:1.2em;font-size:14px;color:rgb(255,140,150)}
+.guide-err:empty,.guide-hint:empty{display:none}
+.guide-hint{font-size:13px;color:var(--muted)}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.guide-summary{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid rgba(var(--g),.45);background:rgba(var(--g),.07)}
+.guide-summary dl{margin:0;display:grid;gap:8px}
+.guide-summary dl div{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:10px;align-items:center}
+.guide-summary dt{font-size:13px;color:var(--muted)}
+.guide-summary dd{margin:0;overflow-wrap:anywhere}
+.guide-summary .privacy{font-size:13px;color:var(--muted);line-height:1.5}
+.guide-summary label{display:flex;gap:10px;align-items:flex-start;font-size:14px}
+.guide-summary input[type=checkbox]{width:20px;height:20px;margin-top:2px;accent-color:rgb(var(--g))}
+.guide-summary button.edit{font:inherit;font-size:13px;color:rgb(var(--hi));background:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;min-height:36px}
+.guide[dir="rtl"] .guide-log li.g{justify-self:start}
+.guide[dir="rtl"] .guide-name b,.guide[dir="rtl"] .guide-name span{letter-spacing:0;text-transform:none;font-family:var(--f-sans)}
+.guide[dir="rtl"] .guide-log li.u{justify-self:end}
+.guide [dir="ltr"]{unicode-bidi:isolate}
+/* the email portal */
+.gportal{position:relative;display:grid;place-items:center;min-height:clamp(260px,40vw,340px);border-radius:24px;overflow:hidden;isolation:isolate;
+  background:radial-gradient(circle at 50% 50%,rgba(var(--g),.16),rgba(1,3,5,.0) 62%)}
+.gportal-ring{position:absolute;inset:0;display:grid;place-items:center;z-index:-1}
+.gportal-ring i{position:absolute;width:min(78%,300px);aspect-ratio:1;border-radius:50%;border:1px solid rgba(var(--g),.55);
+  box-shadow:0 0 40px rgba(var(--g),.35),inset 0 0 40px rgba(var(--g),.25)}
+.gportal-ring i:nth-child(2){width:min(92%,360px);border-color:rgba(var(--acc),.35);box-shadow:0 0 60px rgba(var(--acc),.2)}
+.gportal-ring i:nth-child(3){width:min(64%,240px);border-style:dashed;border-color:rgba(255,255,255,.28);box-shadow:none}
+.gportal.open .gportal-ring i{animation:gp-open 1.1s var(--ease) both}
+.gportal.open .gportal-ring i:nth-child(2){animation-delay:.12s}
+.gportal.open .gportal-ring i:nth-child(3){animation:gp-open 1.1s var(--ease) .2s both,gp-spin 40s linear 1.3s infinite}
+.gportal.open .gportal-core{animation:gp-core .9s var(--ease) .35s both}
+.gportal-core{display:grid;gap:10px;width:min(86%,360px);padding:22px;border-radius:20px;background:rgba(1,3,5,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px);text-align:start}
+.gportal-core label{font-size:14px;color:rgb(var(--g));letter-spacing:.04em}
+@keyframes gp-open{from{transform:scale(.05);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes gp-spin{to{transform:rotate(360deg)}}
+@keyframes gp-core{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+@media (max-width:860px){.guide{grid-template-columns:minmax(0,1fr)}#guideAvatar{width:min(220px,58vw)}.guide-summary dl div{grid-template-columns:minmax(0,1fr) auto}.guide-summary dt{grid-column:1/-1}}
+@media (prefers-reduced-motion:reduce){.gportal.open .gportal-ring i,.gportal.open .gportal-core{animation:none}.guide-log{scroll-behavior:auto}}
 @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;filter:none;transition:none}#drawer{transition:none}html{scroll-behavior:auto}}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
@@ -845,6 +915,54 @@ footer{padding:60px 20px calc(60px + env(safe-area-inset-bottom,0px));text-align
     <h2 class="rv d1">Every meaningful journey begins with a conversation.</h2>
     <div class="next" id="nextLinks"></div>
   </section>
+
+  <section class="wrap s" id="guide" aria-labelledby="guideTitle">
+    <p class="eyebrow rv">The end of the Journey</p>
+    <h2 class="rv d1" id="guideTitle">Ask the ARIMA guide.</h2>
+    <div class="guide glass rv d2" id="guideApp" lang="en" dir="ltr">
+      <div class="guide-stage">
+        <canvas id="guideAvatar" width="300" height="300" aria-hidden="true"></canvas>
+        <p class="guide-name"><b data-t="name">ARIMA Guide</b><span data-t="automated">Automated guide</span></p>
+        <p class="guide-state" id="gState" aria-live="polite"></p>
+        <div class="guide-ctrls">
+          <div class="guide-lang" role="group" aria-label="Language">
+            <button type="button" data-lang="en" aria-pressed="true" lang="en">English</button>
+            <button type="button" data-lang="fa" aria-pressed="false" lang="fa">فارسی</button>
+          </div>
+          <button type="button" class="gbtn" id="gVoice" aria-pressed="false" data-t="voiceOn">Turn on voice</button>
+          <button type="button" class="gbtn" id="gMute" aria-pressed="false" hidden data-t="mute">Mute</button>
+          <button type="button" class="gbtn" id="gReplay" data-t="replay">Replay</button>
+          <button type="button" class="gbtn" id="gMic" hidden data-t="speak">Speak</button>
+        </div>
+        <p class="guide-note" id="gNote"></p>
+      </div>
+      <div class="guide-talk">
+        <ol class="guide-log" id="gLog" aria-live="polite" aria-label="Conversation"></ol>
+        <div class="guide-chips" id="gChips"></div>
+        <div class="guide-summary" id="gSummary" hidden></div>
+        <form class="guide-form" id="gForm" novalidate>
+          <div class="gportal" id="gPortal" hidden>
+            <div class="gportal-ring" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="gportal-core">
+              <label for="gEmail" data-t="emailLabel">Your email address</label>
+              <input id="gEmail" type="email" inputmode="email" autocomplete="email" dir="ltr" maxlength="254" spellcheck="false">
+            </div>
+          </div>
+          <div class="guide-row" id="gRow">
+            <label class="sr" for="gInput" id="gLabel" data-t="askLabel">Ask a question</label>
+            <input id="gInput" type="text" autocomplete="off" maxlength="300" placeholder="Ask about ARIMA">
+          </div>
+          <input class="hp" name="website" id="gHp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <div class="guide-actions">
+            <button type="submit" class="btn primary" id="gSend" data-t="send">Send</button>
+            <button type="button" class="btn ghost" id="gCancel" hidden data-t="cancel">Cancel request</button>
+          </div>
+          <p class="guide-err" id="gErr" role="alert"></p>
+          <p class="guide-hint" id="gHint"></p>
+        </form>
+      </div>
+    </div>
+  </section>
 </div>
 </main>
 
@@ -857,6 +975,7 @@ footer{padding:60px 20px calc(60px + env(safe-area-inset-bottom,0px));text-align
 
 <script src="/cinematic/content.js"></script>
 <script src="/cinematic/app.js"></script>
+<script src="/cinematic/guide.js"></script>
 
 </body>
 </html>
