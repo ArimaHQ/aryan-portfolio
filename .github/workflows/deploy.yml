@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      check_inbound:
+        description: "After deploying, list the newest received emails (masked)"
+        type: boolean
+        required: false
+        default: false
       email_from:
         description: "Optional sender for access-request email, e.g. ARIMA Access <access@arimafinance.xyz> (after the domain is verified in Resend)"
         required: false
@@ -92,3 +97,7 @@ jobs:
       - name: Send labelled test access request
         if: inputs.send_test_request
         run: node scripts/ci/send-test-access-request.mjs
+
+      - name: Report received email
+        if: inputs.check_inbound
+        run: node scripts/ci/report-inbound-email.mjs

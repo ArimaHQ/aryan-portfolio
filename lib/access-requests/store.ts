@@ -26,7 +26,10 @@ export type EmailOutcome =
   | { status: 'failed' | 'pending'; error: string; nextAttemptAt: string | null };
 
 export type RequestStatus = Pick<AccessRequestRecord,
-  'reference' | 'createdAt' | 'emailStatus' | 'emailAttempts' | 'emailLastError' | 'emailProviderId' | 'emailAcceptedAt'>;
+  'reference' | 'createdAt' | 'emailStatus' | 'emailAttempts' | 'emailLastError' | 'emailProviderId' | 'emailAcceptedAt'> & {
+  /** What Resend later reported for the accepted email (delivered, bounced, ...), via webhook. */
+  emailDelivery: string | null; emailDeliveryAt: string | null;
+};
 
 export interface AccessRequestStore {
   /** Inserts the record, or returns the existing one with the same submissionId. */
@@ -106,7 +109,9 @@ export class DurableObjectAccessRequestStore implements AccessRequestStore {
 
   async statusOf(reference: string) {
     const row = await this.stub.statusOf(reference);
-    return row ? toStatus(fromRow(row)) : null;
+    if (!row) return null;
+    const delivery = row as unknown as { email_delivery?: string | null; email_delivery_at?: string | null };
+    return { ...toStatus(fromRow(row)), emailDelivery: delivery.email_delivery ?? null, emailDeliveryAt: delivery.email_delivery_at ?? null };
   }
 }
 
@@ -165,5 +170,5 @@ export class MemoryAccessRequestStore implements AccessRequestStore {
 
 function toStatus(r: AccessRequestRecord): RequestStatus {
   const { reference, createdAt, emailStatus, emailAttempts, emailLastError, emailProviderId, emailAcceptedAt } = r;
-  return { reference, createdAt, emailStatus, emailAttempts, emailLastError, emailProviderId, emailAcceptedAt };
+  return { reference, createdAt, emailStatus, emailAttempts, emailLastError, emailProviderId, emailAcceptedAt, emailDelivery: null, emailDeliveryAt: null };
 }
