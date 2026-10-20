@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const emails = rows.map((r) => ({
     emailId: r.email_id, receivedAt: r.received_at,
     from: full ? r.from_address : maskAddress(r.from_address),
-    to: JSON.parse(r.to_addresses) as string[],
+    to: (JSON.parse(r.to_addresses) as string[]).map((a) => (full ? a : maskAddress(a))),
     // Subjects can be personal; only labelled test subjects are shown unless full=1.
     subject: full || /^ARIMA-QA\b/.test(r.subject) ? r.subject : `(${r.subject.length} characters)`,
     attachments: r.attachment_count, body: r.body_status, bodyLength: r.body_length,

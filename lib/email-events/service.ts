@@ -23,7 +23,11 @@ export type WebhookResult =
 export async function handleResendWebhook(deps: WebhookDeps, headers: SignatureHeaders, raw: string): Promise<WebhookResult> {
   const now = (deps.now ?? (() => new Date()))();
   const check = await verifyWebhookSignature(deps.secret, headers, raw, now);
-  if (!check.ok) return { status: 401, body: { error: check.reason } };
+  // The reason stays in the log; callers only learn that the request was refused.
+  if (!check.ok) {
+    console.warn(`[email-webhook] refused: ${check.reason}`);
+    return { status: 401, body: { error: 'unauthorised' } };
+  }
 
   let payload: unknown;
   try {
