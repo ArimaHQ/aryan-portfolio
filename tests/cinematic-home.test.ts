@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { GET } from '@/app/route';
+import { GET } from '@/app/journey/route';
 import { CINEMATIC_HOME_HTML } from '@/features/cinematic-home/html.generated';
 
 const root = path.resolve(__dirname, '..');
 
-describe('cinematic home', () => {
+describe('ARIMA Journey', () => {
   it('serves the generated document as HTML', async () => {
     const response = GET();
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
@@ -22,7 +22,7 @@ describe('cinematic home', () => {
   });
 
   it('links to the established public routes', () => {
-    for (const route of ['/client-portfolio/', '/watch-intro/', '/choose-door/', '/research-projects/', '/portfolio-lab/', '/work-with-us/']) {
+    for (const route of ['/', '/client-portfolio/', '/watch-intro/', '/choose-door/', '/research-projects/', '/portfolio-lab/', '/work-with-us/']) {
       expect(CINEMATIC_HOME_HTML).toContain(`href="${route}"`);
       expect(readFileSync(path.join(root, `app/(public)${route}page.tsx`), 'utf8').length).toBeGreaterThan(0);
     }

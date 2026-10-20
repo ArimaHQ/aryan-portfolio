@@ -1,5 +1,5 @@
-// ─── Arima home ───
-// The cinematic home is a self-contained document (WebGL surface, four colour worlds, portals),
+// ─── ARIMA Journey ───
+// The cinematic ARIMA Journey is a self-contained document (WebGL surface, four colour worlds, portals),
 // served as-is so its scroll-driven scene runs without the React layout around it.
 // Markup: features/cinematic-home/index.html · scripts and logo: public/cinematic/
 import { CINEMATIC_HOME_HTML } from '@/features/cinematic-home/html.generated';
