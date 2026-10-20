@@ -66,3 +66,12 @@ in the `inbound_emails` table of the Durable Object, then reads the body from Re
 (`GET /emails/receiving/{id}`). A sending-only API key cannot read bodies; the email is still stored with
 `body_status` `http_401` or `http_403`. Received email and webhook events are purged after the retention period.
 Run the deploy workflow with `check_inbound` to list the newest received emails with masked addresses.
+
+## Email layout
+
+All ARIMA emails share one layout: `lib/email/layout.ts` here and `app/email/layout.py` in Arima-Executive-OS
+(login notification, email verification, password reset, email change, welcome, security alert and withdrawal
+emails). It has the official logo (`public/email/arima-logo.png`, a resized copy of `public/cinematic/arima-logo-official.png`,
+served at `https://arimafinance.xyz/email/arima-logo.png`), the site's ink, gold and Helvetica/Arial font, one bulletproof
+button with a plain link under it, a plain-text alternative, `dir="rtl"` for Persian and `dir="auto"` on visitor values.
+The footer carries only the brand and the site link, because no public contact address is confirmed yet.
