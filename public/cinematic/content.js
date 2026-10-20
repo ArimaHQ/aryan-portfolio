@@ -30,7 +30,8 @@ window.ARIMA = {
     { id: 'individuals', label: 'Individuals',          world: 3 },
     { id: 'businesses',  label: 'Businesses',           world: 3 },
     { id: 'world',       label: 'ARIMA World',          world: 3 },
-    { id: 'contact',     label: 'Contact',              world: 3 }
+    { id: 'contact',     label: 'Contact',              world: 3 },
+    { id: 'guide',       label: 'Ask the guide',        world: 3 }
   ],
 
   routes: [
@@ -336,17 +337,21 @@ window.ARIMA = {
     role: 'Founder of Arima Finance',
     fields: 'Finance · Quantitative Research · Technology',
     education: [
+      { degree: 'PhD in Finance and Economics', place: '' },
       { degree: 'MSc Finance & Accounting', place: 'Anglia Ruskin University, London' },
       { degree: 'BSc Avionics Engineering', place: 'National Aviation University, Kyiv' }
     ],
     environments: [
-      { org: 'Bank of England', area: 'Financial Markets Research' },
-      { org: 'Samuel & Co Trading', area: 'Financial Advisory' },
+      { org: 'Bank of England', area: 'Research Analyst, working on the central bank’s strategic gold reserves' },
+      { org: 'EY', area: 'Junior Accountant' },
+      { org: 'Artin & Partners', area: 'Investment Banking Analyst' },
+      { org: 'Samuel & Co Trading', area: 'FX Trading' },
       { org: 'Technology entrepreneurship', area: 'Founder projects' }
     ],
+    qualifications: ['Passed Level III of the CFA Program.'],
     statement: 'Building financial systems where research, technology and risk discipline converge.',
     disclaimer: 'Organisation names refer to the founder’s professional background and do not imply endorsement or affiliation with Arima Finance.',
-    src: 'aryan-portfolio-local · components/PhaseOneFilm.tsx (current live film copy)'
+    src: 'Founder-provided facts (20 Oct 2026) and components/PhaseOneFilm.tsx'
   },
 
   links: {

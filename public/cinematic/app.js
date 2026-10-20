@@ -500,9 +500,9 @@ drawer.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();trap(dra
 (function routes(){const r=$('#routes');A.routes.forEach(x=>r.appendChild(h('a',{href:x.href},`<b>${esc(x.who)}</b><span>${esc(x.line)}</span><span class="arrow small" style="color:rgb(var(--hi))">Go</span>`)))})();
 
 (function founder(){const f=A.founder;$('#fName').textContent=f.name;$('#fRole').textContent=`${f.role}. ${f.fields}.`;
-  const rows=[['Education',f.education.map(e=>`${esc(e.degree)}, ${esc(e.place)}`).join('<br>')],['Professional environments',f.environments.map(e=>`${esc(e.org)} · ${esc(e.area)}`).join('<br>')]];
+  const rows=[['Education',f.education.map(e=>esc(e.degree)+(e.place?`, ${esc(e.place)}`:'')).join('<br>')],['Professional experience',f.environments.map(e=>`${esc(e.org)} · ${esc(e.area)}`).join('<br>')],['Qualifications',f.qualifications.map(esc).join('<br>')]];
   $('#fFacts').innerHTML=rows.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
-  $('#fQuote').textContent='“'+f.statement+'”';$('#fDisc').textContent=f.disclaimer+' Shown as on the current site, awaiting the founder’s confirmation.'})();
+  $('#fQuote').textContent='“'+f.statement+'”';$('#fDisc').textContent=f.disclaimer})();
 
 /* =====================================================================
    5. DATA WORLD: sources, stages, Mini App
