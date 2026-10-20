@@ -37,7 +37,8 @@ export function isValidName(value: string): boolean {
 }
 
 export function isValidEmail(value: string): boolean {
-  return value.length <= 254 && EMAIL_PATTERN.test(value);
+  // Invisible format characters (bidi overrides, zero-width) could make an address look like another.
+  return value.length <= 254 && EMAIL_PATTERN.test(value) && !/\p{Cf}/u.test(value);
 }
 
 export function isValidPhone(value: string): boolean {

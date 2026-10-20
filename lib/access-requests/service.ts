@@ -9,6 +9,8 @@ import {
 
 export const MAX_EMAIL_ATTEMPTS = 6;
 export const MAX_REQUESTS_PER_CLIENT_PER_HOUR = 5;
+// A ceiling for everyone together, so rotating addresses cannot flood the inbox or the Resend quota.
+export const MAX_REQUESTS_PER_HOUR = 30;
 export const MIN_FORM_MILLISECONDS = 2500;
 
 export type SubmitResult =
@@ -79,7 +81,7 @@ export async function submitAccessRequest(
   const hourAgo = new Date(now.getTime() - 3_600_000).toISOString();
   if (await deps.store.countRecentByClient(client.hash, hourAgo) >= MAX_REQUESTS_PER_CLIENT_PER_HOUR) return { kind: 'rate_limited' };
 
-  const { record, duplicate } = await deps.store.insert({
+  const inserted = await deps.store.insert({
     ...fields,
     id: (deps.randomId ?? (() => crypto.randomUUID()))(),
     submissionId: input.submissionId,
@@ -90,7 +92,9 @@ export async function submitAccessRequest(
     createdAt: now.toISOString(),
     emailStatus: 'pending', emailAttempts: 0, emailLastError: null, emailProviderId: null, emailAcceptedAt: null,
     nextAttemptAt: now.toISOString(),
-  });
+  }, { sinceIso: hourAgo, perClient: MAX_REQUESTS_PER_CLIENT_PER_HOUR, total: MAX_REQUESTS_PER_HOUR });
+  if (inserted.rateLimited) return { kind: 'rate_limited' };
+  const { record, duplicate } = inserted;
 
   let status = record.emailStatus;
   if (!duplicate) {

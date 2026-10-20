@@ -31,10 +31,20 @@ export type RequestStatus = Pick<AccessRequestRecord,
   emailDelivery: string | null; emailDeliveryAt: string | null;
 };
 
+export type InsertLimits = { sinceIso: string; perClient: number; total: number };
+export type InsertResult =
+  | { record: AccessRequestRecord; duplicate: boolean; rateLimited?: false }
+  | { rateLimited: true };
+
 export interface AccessRequestStore {
-  /** Inserts the record, or returns the existing one with the same submissionId. */
-  insert(record: AccessRequestRecord): Promise<{ record: AccessRequestRecord; duplicate: boolean }>;
+  /**
+   * Inserts the record, or returns the existing one with the same submissionId. With limits, the count and
+   * the insert happen together, so parallel submissions cannot pass the limit.
+   */
+  insert(record: AccessRequestRecord, limits?: InsertLimits): Promise<InsertResult>;
   countRecentByClient(clientHash: string, sinceIso: string): Promise<number>;
+  /** A random salt kept by the store, created on first use. */
+  clientSalt(): Promise<string>;
   /** Records still waiting for email whose next attempt is due. */
   dueForEmail(nowIso: string, limit: number): Promise<AccessRequestRecord[]>;
   recordEmailOutcome(id: string, outcome: EmailOutcome): Promise<void>;
@@ -64,8 +74,9 @@ export function fromRow(row: Row): AccessRequestRecord {
 
 // RPC surface of the Durable Object (see durable-object.mjs). Rows come back as plain objects.
 type StoreStub = {
-  insert(record: AccessRequestRecord): Promise<{ row: Row; duplicate: boolean }>;
+  insert(record: AccessRequestRecord, limits?: InsertLimits): Promise<{ row: Row; duplicate: boolean } | { rateLimited: true }>;
   countRecentByClient(clientHash: string, sinceIso: string): Promise<number>;
+  clientSalt(): Promise<string>;
   dueForEmail(nowIso: string, limit: number): Promise<Row[]>;
   recordEmailOutcome(id: string, outcome: EmailOutcome): Promise<void>;
   purgeOlderThan(cutoffIso: string): Promise<number>;
@@ -82,13 +93,18 @@ export class DurableObjectAccessRequestStore implements AccessRequestStore {
     this.stub = namespace.get(namespace.idFromName('access-requests')) as StoreStub;
   }
 
-  async insert(record: AccessRequestRecord) {
-    const { row, duplicate } = await this.stub.insert(record);
-    return { record: fromRow(row), duplicate };
+  async insert(record: AccessRequestRecord, limits?: InsertLimits): Promise<InsertResult> {
+    const result = await this.stub.insert(record, limits);
+    if ('rateLimited' in result) return { rateLimited: true };
+    return { record: fromRow(result.row), duplicate: result.duplicate };
   }
 
   countRecentByClient(clientHash: string, sinceIso: string) {
     return this.stub.countRecentByClient(clientHash, sinceIso);
+  }
+
+  clientSalt() {
+    return this.stub.clientSalt();
   }
 
   async dueForEmail(nowIso: string, limit: number) {
@@ -120,13 +136,23 @@ export class MemoryAccessRequestStore implements AccessRequestStore {
   readonly records = new Map<string, AccessRequestRecord>();
   failInserts = false;
 
-  async insert(record: AccessRequestRecord) {
+  async insert(record: AccessRequestRecord, limits?: InsertLimits): Promise<InsertResult> {
     if (this.failInserts) throw new Error('mock_store_unavailable');
     const existing = [...this.records.values()].find((r) => r.submissionId === record.submissionId);
     if (existing) return { record: { ...existing }, duplicate: true };
+    if (limits) {
+      const recent = [...this.records.values()].filter((r) => r.createdAt >= limits.sinceIso);
+      if (recent.length >= limits.total || recent.filter((r) => r.clientHash === record.clientHash).length >= limits.perClient) {
+        return { rateLimited: true };
+      }
+    }
     const stored = { ...record, emailStatus: 'pending' as const, emailAttempts: 0, nextAttemptAt: record.createdAt };
     this.records.set(record.id, stored);
     return { record: { ...stored }, duplicate: false };
+  }
+
+  async clientSalt() {
+    return 'mock-salt';
   }
 
   async countRecentByClient(clientHash: string, sinceIso: string) {

@@ -3,8 +3,9 @@
 import { describe, expect, it } from 'vitest';
 import { composeAccessRequestEmail, MockEmailSender } from '@/lib/access-requests/email';
 import {
-  MAX_EMAIL_ATTEMPTS, nextAttemptAfter, processDueEmails, purgeExpired, submitAccessRequest, type ServiceDeps,
+  MAX_EMAIL_ATTEMPTS, MAX_REQUESTS_PER_HOUR, nextAttemptAfter, processDueEmails, purgeExpired, submitAccessRequest, type ServiceDeps,
 } from '@/lib/access-requests/service';
+import { clientNetwork } from '@/lib/access-requests/http';
 import { MemoryAccessRequestStore } from '@/lib/access-requests/store';
 import { isValidEmail, isValidName, isValidPhone, normalisePhone } from '@/lib/access-requests/validation';
 
@@ -28,6 +29,7 @@ describe('access request validation', () => {
     expect(isValidName('آرین')).toBe(true);
     expect(isValidName('')).toBe(false);
     expect(isValidName('http://spam.example')).toBe(false);
+    expect(isValidEmail('admin\u202e@example.com')).toBe(false);
   });
 
   it('checks email format only', () => {
@@ -91,6 +93,28 @@ describe('access request submission', () => {
       expect((await submitAccessRequest(deps, { ...valid, submissionId: `test-submission-10${i}0` }, { hash: 'busy' })).kind).toBe('recorded');
     }
     expect(await submitAccessRequest(deps, { ...valid, submissionId: 'test-submission-9999' }, { hash: 'busy' })).toEqual({ kind: 'rate_limited' });
+  });
+
+  it('stops parallel submissions from one client at the limit', async () => {
+    const { deps, store } = setup();
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) =>
+      submitAccessRequest(deps, { ...valid, submissionId: `test-submission-20${i}0` }, { hash: 'burst' })));
+    expect(results.filter((r) => r.kind === 'recorded')).toHaveLength(5);
+    expect(store.records.size).toBe(5);
+  });
+
+  it('caps requests from everyone together in an hour', async () => {
+    const { deps } = setup();
+    for (let i = 0; i < MAX_REQUESTS_PER_HOUR; i += 1) {
+      await submitAccessRequest(deps, { ...valid, submissionId: `test-submission-3${String(i).padStart(3, '0')}` }, { hash: `client-${i}` });
+    }
+    expect(await submitAccessRequest(deps, { ...valid, submissionId: 'test-submission-3999' }, { hash: 'fresh' })).toEqual({ kind: 'rate_limited' });
+  });
+
+  it('rate-limits an IPv6 /64 as one client', () => {
+    expect(clientNetwork('2001:db8:aa:bb:1:2:3:4')).toBe(clientNetwork('2001:0db8:00aa:00bb::9'));
+    expect(clientNetwork('2001:db8:aa:bb::1')).not.toBe(clientNetwork('2001:db8:aa:bc::1'));
+    expect(clientNetwork('203.0.113.7')).toBe('203.0.113.7');
   });
 
   it('keeps the request pending when email is not configured', async () => {

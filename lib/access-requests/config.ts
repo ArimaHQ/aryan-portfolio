@@ -45,8 +45,9 @@ export function emailSender(env: ServerEnv): EmailSender | null {
   return null;
 }
 
+/** Salt for client hashes; when unset, the store's own random salt is used. */
 export function hashSalt(env: ServerEnv): string {
-  return str(env, 'ACCESS_REQUEST_HASH_SALT') || 'arima-access-requests';
+  return str(env, 'ACCESS_REQUEST_HASH_SALT');
 }
 
 export function adminToken(env: ServerEnv): string {

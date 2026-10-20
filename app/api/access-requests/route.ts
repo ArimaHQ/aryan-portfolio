@@ -1,10 +1,13 @@
 // Receives a confirmed access request from the ARIMA Journey guide.
 import { accessRequestStore, emailSender, hashSalt, retentionDays, serverEnv } from '@/lib/access-requests/config';
+import { clientNetwork, readCappedText } from '@/lib/access-requests/http';
 import { hashClient, submitAccessRequest } from '@/lib/access-requests/service';
 
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_HOSTS = new Set(['arimafinance.xyz', 'www.arimafinance.xyz', 'localhost', '127.0.0.1']);
+const ALLOWED_HOSTS = new Set([
+  'arimafinance.xyz', 'www.arimafinance.xyz', 'aryan-portfolio.ea-arima7576.workers.dev', 'localhost', '127.0.0.1',
+]);
 const json = (body: unknown, status: number) =>
   Response.json(body, { status, headers: { 'cache-control': 'no-store' } });
 
@@ -13,7 +16,7 @@ function sameSite(request: Request): boolean {
   if (!origin) return false;
   try {
     const host = new URL(origin).hostname;
-    return ALLOWED_HOSTS.has(host) || host.endsWith('.workers.dev');
+    return ALLOWED_HOSTS.has(host);
   } catch {
     return false;
   }
@@ -22,8 +25,8 @@ function sameSite(request: Request): boolean {
 export async function POST(request: Request) {
   if (!sameSite(request)) return json({ error: 'forbidden' }, 403);
   if (!(request.headers.get('content-type') ?? '').includes('application/json')) return json({ error: 'unsupported_media_type' }, 415);
-  const raw = await request.text();
-  if (raw.length > 4096) return json({ error: 'too_large' }, 413);
+  const raw = await readCappedText(request, 4096);
+  if (raw === null) return json({ error: 'too_large' }, 413);
   let input: Record<string, unknown>;
   try {
     const parsed = JSON.parse(raw);
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     const result = await submitAccessRequest(
       { store, sender: emailSender(env), retentionDays: retentionDays(env) },
       input,
-      { hash: await hashClient(ip, hashSalt(env)) },
+      { hash: await hashClient(clientNetwork(ip), hashSalt(env) || await store.clientSalt()) },
     );
     switch (result.kind) {
       case 'recorded':
