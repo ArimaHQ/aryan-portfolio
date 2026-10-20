@@ -58,6 +58,13 @@ jobs:
       - name: Validate Cloudflare artifact
         run: test -s .open-next/worker.js && test -d .open-next/assets
 
+      - name: Report Cloudflare deployment before this deploy
+        if: inputs.send_test_request || inputs.check_inbound
+        run: node scripts/ci/report-cloudflare-deployment.mjs "before this deploy"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Prepare access-request Worker secrets
         run: node scripts/ci/configure-access-request-email.mjs
         env:
@@ -86,6 +93,13 @@ jobs:
             echo "${path} ${code}"
             test "${code}" = "200"
           done
+
+      - name: Report Cloudflare deployment after this deploy
+        if: inputs.send_test_request || inputs.check_inbound
+        run: node scripts/ci/report-cloudflare-deployment.mjs "after this deploy"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Check access-request email setup
         run: node scripts/ci/check-access-request-email.mjs

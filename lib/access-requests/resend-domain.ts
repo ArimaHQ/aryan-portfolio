@@ -21,7 +21,11 @@ export async function checkSendingDomain(apiKey: string, fetchImpl: typeof fetch
 
   const listed = await call('/domains');
   // A sending-only key cannot read domains; sending still works.
-  if (listed.status !== 200) return result(`unreadable_http_${listed.status}`);
+  if (listed.status !== 200) {
+    // Resend's error name (for example restricted_api_key) says what kind of key the Worker has.
+    const name = typeof listed.body.name === 'string' && /^[a-z_]{1,40}$/.test(listed.body.name) ? `_${listed.body.name}` : '';
+    return result(`unreadable_http_${listed.status}${name}`);
+  }
   let domain = ((listed.body.data as { id: string; name: string }[] | undefined) ?? []).find((d) => d.name === SENDING_DOMAIN);
   if (!domain) {
     const created = await call('/domains', { method: 'POST', body: JSON.stringify({ name: SENDING_DOMAIN }) });
