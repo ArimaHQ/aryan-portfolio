@@ -1,5 +1,6 @@
 // Email delivery for access requests. The provider is chosen by configuration;
 // credentials stay on the server (Worker secrets) and never reach the browser.
+import { renderEmailHtml, renderEmailText, singleLine } from '@/lib/email/layout';
 import type { AccessRequestRecord } from './store';
 
 export type SendResult =
@@ -11,11 +12,8 @@ export interface EmailSender {
   send(record: AccessRequestRecord): Promise<SendResult>;
 }
 
-const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
-
 // Strips control characters so submitted text cannot add lines or headers.
-const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, ' ');
+const plain = singleLine;
 
 export function composeAccessRequestEmail(record: AccessRequestRecord) {
   const rows: [string, string][] = [
@@ -28,13 +26,17 @@ export function composeAccessRequestEmail(record: AccessRequestRecord) {
     ['Originating page', `https://arimafinance.xyz${record.page}`],
     ['Visitor language', record.locale === 'fa' ? 'Persian' : 'English'],
   ];
-  const note = 'Submitted through the ARIMA Journey guide. This is an access request only: no account has been created or approved. All values were typed by the visitor and are untrusted.';
+  const layout = {
+    preheader: `${record.reference}: ${plain(record.firstName)} ${plain(record.lastName)} asked for account access.`,
+    heading: 'New account access request',
+    paragraphs: ['A visitor confirmed an account access request through the ARIMA Journey guide.'],
+    rows,
+    note: 'This is an access request only: no account has been created or approved. All values were typed by the visitor and are untrusted.',
+  };
   return {
     subject: `ARIMA access request ${record.reference}`,
-    text: `${rows.map(([k, v]) => `${k}: ${plain(v)}`).join('\n')}\n\n${note}\n`,
-    html: `<table cellpadding="6" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:14px">${rows
-      .map(([k, v]) => `<tr><th align="left" style="color:#555">${escapeHtml(k)}</th><td>${escapeHtml(plain(v))}</td></tr>`)
-      .join('')}</table><p style="font-family:Arial,sans-serif;font-size:13px;color:#555">${escapeHtml(note)}</p>`,
+    text: renderEmailText(layout),
+    html: renderEmailHtml(layout),
   };
 }
 
