@@ -12,6 +12,10 @@ on:
         type: boolean
         required: false
         default: false
+      email_from:
+        description: "Optional sender for access-request email, e.g. ARIMA Access <access@arimafinance.xyz> (after the domain is verified in Resend)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -81,6 +85,7 @@ jobs:
       - name: Check access-request email setup
         run: node scripts/ci/check-access-request-email.mjs
         env:
+          EMAIL_FROM: ${{ inputs.email_from }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
