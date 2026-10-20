@@ -2,6 +2,11 @@ name: Deploy frontend to Cloudflare
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit, branch or tag to deploy (empty = the commit this run starts from). Rollback: rollback/pre-v4-live"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -13,7 +18,7 @@ jobs:
       - name: Checkout approved frontend release
         uses: actions/checkout@v4
         with:
-          ref: 303567793e24c6aaaaa326b80f2676bda712809b
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,4 +51,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Verify canonical frontend
-        run: test "$(curl -fsS -o /dev/null -w '%{http_code}' https://arimafinance.xyz)" = "200"
+        run: |
+          set -e
+          for path in / /client-portfolio/ /watch-intro/ /choose-door/ /research-projects/ /portfolio-lab/ /work-with-us/ /mind-map/ /intro/ /login/; do
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "https://arimafinance.xyz${path}")"
+            echo "${path} ${code}"
+            test "${code}" = "200"
+          done
