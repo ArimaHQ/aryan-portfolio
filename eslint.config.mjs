@@ -13,5 +13,7 @@ export default defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    // Self-contained browser scripts for the cinematic home, served as static files.
+    "public/cinematic/**",
   ]),
 ]);
