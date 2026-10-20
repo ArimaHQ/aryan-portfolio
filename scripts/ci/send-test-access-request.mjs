@@ -46,6 +46,17 @@ const check = await fetch(`${base}/api/access-requests/status?reference=${result
   headers: { Authorization: `Bearer ${adminToken}` },
 });
 const status = await check.json().catch(() => ({}));
+console.log(`checked at ${new Date().toISOString()}`);
 console.log(`GET /api/access-requests/status -> HTTP ${check.status}`, JSON.stringify(status));
 summary(`- Stored record: HTTP ${check.status} \`${JSON.stringify(status)}\``);
 if (!status.stored) process.exit(1);
+
+// Once Resend has accepted it, give delivery a moment and read the latest event (delivered, bounced, ...).
+if (status.emailProviderId) {
+  await new Promise((resolve) => setTimeout(resolve, 20000));
+  const later = await fetch(`${base}/api/access-requests/status?reference=${result.reference}`, {
+    headers: { Authorization: `Bearer ${adminToken}` },
+  }).then((r) => r.json()).catch(() => ({}));
+  console.log(`delivery after 20s: provider=${later.providerLastEvent} webhook=${later.emailDelivery}`);
+  summary(`- Delivery after 20s: Resend last event \`${later.providerLastEvent}\`, webhook \`${later.emailDelivery}\``);
+}
