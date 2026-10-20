@@ -6,6 +6,7 @@ import type {
   VoiceSession,
 } from '@/types/voice';
 import { authApi, getAccessToken } from '@/lib/auth-api';
+import { ApiClientError, apiClient } from '@/lib/api-client';
 import { voiceFailureState } from '@/utils/voice-error-contract';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '');
@@ -144,6 +145,7 @@ export class VoiceApiClient {
   private currentMode: VoiceMode = initialVoiceMode;
   private currentAvailability: VoiceAvailability = 'unavailable';
   private currentUnavailableMessage = 'Voice intelligence is unavailable until a verified provider is configured.';
+  private ttsAvailable = false;
 
   get mode(): VoiceMode {
     return this.currentMode;
@@ -196,6 +198,7 @@ export class VoiceApiClient {
     this.currentAvailability = 'checking';
     try {
       const health = await request<VoiceHealth>('/api/v1/voice/health', {}, this.apiUrl, this.fetchImpl, this.accessTokenProvider);
+      this.ttsAvailable = health.tts_status === 'available';
       const isVerified = isVoiceAiReady(health);
       if (!isVerified) {
         const reason = health.provider_provenance === 'mock'
@@ -219,6 +222,32 @@ export class VoiceApiClient {
       this.currentAvailability = 'unavailable';
       this.currentUnavailableMessage = message;
       return this.currentAvailability;
+    }
+  }
+
+  get hasServerTts(): boolean {
+    return this.ttsAvailable;
+  }
+
+  async synthesize(text: string, locale: string, requestId: string, generationId: number): Promise<Blob> {
+    this.assertVerified();
+    const session = this.session ?? await this.createSession();
+    if (!this.ttsAvailable) throw new VoiceProviderUnavailableError('Server speech is not configured.');
+    try {
+      return await apiClient<Blob>(`/api/v1/voice/sessions/${session.session_id}/tts`, {
+        method: 'POST',
+        body: { text, locale, request_id: requestId, generation_id: generationId },
+        responseType: 'blob',
+      });
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) {
+        throw new VoiceApiError('Voice authentication is required.', 'authentication', 401);
+      }
+      if (error instanceof ApiClientError && error.status === 403) {
+        throw new VoiceApiError('Voice authorization was denied.', 'authorization', 403);
+      }
+      if (error instanceof VoiceApiError) throw error;
+      throw new VoiceProviderUnavailableError('Server speech is unavailable.', true, 'unavailable');
     }
   }
 

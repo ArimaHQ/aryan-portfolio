@@ -128,6 +128,7 @@ export type VoiceHealth = {
   orchestration_available: boolean;
   checked_at: string;
   provider_provenance?: VoiceProviderProvenance;
+  tts_status?: 'not_configured' | 'unavailable' | 'available';
   /** Informational market capability; it must never gate Voice AI readiness. */
   market_provenance?: MarketProvenance;
 };

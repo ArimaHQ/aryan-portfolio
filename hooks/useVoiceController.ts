@@ -87,6 +87,21 @@ const recoveryCopy: Record<string, { message: string; status: VoiceStatus }> = {
   },
 };
 
+const languageForSpeech = (text: string, browserLanguage: string) => {
+  if (/سلام/u.test(text) || /[\u067e\u0686\u0698\u06af\u06cc\u06a9]/u.test(text)) return 'fa-IR';
+  if (/[\u0600-\u06ff]/u.test(text)) return 'ar-SA';
+  if (/[\u0400-\u04ff]/u.test(text)) return 'ru-RU';
+  return browserLanguage || 'en-GB';
+};
+
+const ttsLocaleForText = (text: string, browserLanguage: string) => {
+  const language = languageForSpeech(text, browserLanguage).toLowerCase();
+  if (language === 'fa' || language === 'fa-ir') return 'fa-IR';
+  if (language === 'ru' || language === 'ru-ru') return 'ru-RU';
+  if (language === 'en' || language === 'en-us' || language === 'en-gb') return 'en-US';
+  return language;
+};
+
 export function useVoiceController({
   onPanel,
   onVoiceResponse,
@@ -104,6 +119,9 @@ export function useVoiceController({
   const submissionInFlight = useRef(false);
   const recoveryTimer = useRef<number | null>(null);
   const speechWasCancelled = useRef(false);
+  const speechGeneration = useRef(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
   const [state, setState] = useState<VoiceState>('idle');
   const [mode, setMode] = useState<VoiceMode>(initialVoiceMode);
   const [availability, setAvailability] = useState<VoiceAvailability>('checking');
@@ -158,23 +176,93 @@ export function useVoiceController({
   }, [onNavigation, onPanel, router]);
 
   const stopSpeech = useCallback(() => {
+    speechGeneration.current += 1;
     speechWasCancelled.current = true;
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
     clearSpeechPulse();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
   }, [clearSpeechPulse]);
 
-  const speak = useCallback((text: string) => {
-    if (muted || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  const speak = useCallback(async (text: string) => {
+    if (muted || typeof window === 'undefined') {
       setState('idle');
       setVoiceStatus('voice_ready');
       return;
     }
+    const language = ttsLocaleForText(text, navigator.language);
     stopSpeech();
     speechWasCancelled.current = false;
+    const generation = speechGeneration.current;
+    if (api.current.hasServerTts) {
+      let blob: Blob | null = null;
+      try {
+        blob = await api.current.synthesize(text, language, globalThis.crypto?.randomUUID?.() ?? '00000000-0000-4000-8000-000000000000', generation);
+        if (!blob || blob.size <= 0 || !blob.type.startsWith('audio/')) blob = null;
+      } catch {
+        blob = null;
+      }
+      if (blob) {
+        let url: string | null = null;
+        let audio: HTMLAudioElement | null = null;
+        try {
+          url = URL.createObjectURL(blob);
+          audioUrlRef.current = url;
+          audio = new Audio(url);
+          audioRef.current = audio;
+        } catch {
+          if (url) URL.revokeObjectURL(url);
+          audioUrlRef.current = null;
+          audioRef.current = null;
+        }
+        if (audio && url) {
+          const cleanupAudio = () => {
+            if (audioUrlRef.current === url) audioUrlRef.current = null;
+            if (audioRef.current === audio) audioRef.current = null;
+            URL.revokeObjectURL(url);
+          };
+          audio.onplay = () => {
+            if (generation !== speechGeneration.current) return;
+            setState('speaking');
+            setVoiceStatus('voice_ready');
+            setSpeechAmplitude(0.42);
+          };
+          audio.onended = () => {
+            if (generation !== speechGeneration.current) return;
+            clearSpeechPulse();
+            setState('idle');
+            setVoiceStatus('voice_ready');
+            cleanupAudio();
+          };
+          audio.onerror = () => {
+            if (generation !== speechGeneration.current) return;
+            cleanupAudio();
+            setVoiceStatus('keyboard_mode');
+            setKeyboardOpen(true);
+            setState('warning');
+          };
+          try {
+            await audio.play();
+            return;
+          } catch {
+            audio.pause();
+            cleanupAudio();
+          }
+        }
+      }
+    }
+    if (!('speechSynthesis' in window)) {
+      setVoiceStatus('keyboard_mode');
+      setKeyboardOpen(true);
+      setState('warning');
+      return;
+    }
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = navigator.language || 'en-GB';
+    utterance.lang = language;
     utterance.rate = 0.96;
     utterance.pitch = 0.92;
     utterance.onstart = () => {

@@ -30,6 +30,7 @@ export type ApiClientOptions = {
    */
   csrf?: boolean;
   timeout?: number;
+  responseType?: 'json' | 'blob';
 };
 
 const correlationId = (prefix: string) => (
@@ -68,6 +69,7 @@ export async function apiClient<T>(
     body,
     csrf = method !== 'GET',
     timeout = DEFAULT_TIMEOUT,
+    responseType = 'json',
   } = options;
 
   const controller = new AbortController();
@@ -94,7 +96,9 @@ export async function apiClient<T>(
 
     const contentType = response.headers.get('content-type') ?? '';
     let payload: unknown;
-    if (contentType.includes('application/json')) {
+    if (response.ok && responseType === 'blob') {
+      payload = await response.blob();
+    } else if (contentType.includes('application/json')) {
       payload = await response.json();
     } else {
       const text = await response.text();
