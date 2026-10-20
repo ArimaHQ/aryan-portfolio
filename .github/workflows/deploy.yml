@@ -53,7 +53,7 @@ jobs:
       - name: Verify canonical frontend
         run: |
           set -e
-          for path in / /client-portfolio/ /watch-intro/ /choose-door/ /research-projects/ /portfolio-lab/ /work-with-us/ /mind-map/ /intro/ /login/; do
+          for path in / /journey/ /client-portfolio/ /watch-intro/ /choose-door/ /research-projects/ /portfolio-lab/ /work-with-us/ /mind-map/ /intro/ /login/; do
             code="$(curl -sS -o /dev/null -w '%{http_code}' "https://arimafinance.xyz${path}")"
             echo "${path} ${code}"
             test "${code}" = "200"
