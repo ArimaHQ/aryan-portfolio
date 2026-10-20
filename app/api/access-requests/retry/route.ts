@@ -1,22 +1,13 @@
 // Operator endpoint: retries stored access requests whose email is still pending.
 // Requires the ACCESS_REQUEST_ADMIN_TOKEN secret as a bearer token.
-import { accessRequestStore, adminToken, emailSender, retentionDays, serverEnv } from '@/lib/access-requests/config';
+import { accessRequestStore, emailSender, isOperator, retentionDays, serverEnv } from '@/lib/access-requests/config';
 import { processDueEmails, purgeExpired } from '@/lib/access-requests/service';
 
 export const dynamic = 'force-dynamic';
 
-function authorised(request: Request, token: string): boolean {
-  const given = request.headers.get('authorization') ?? '';
-  const expected = `Bearer ${token}`;
-  if (!token || given.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < given.length; i += 1) diff |= given.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
-}
-
 export async function POST(request: Request) {
   const env = serverEnv();
-  if (!authorised(request, adminToken(env))) return Response.json({ error: 'unauthorised' }, { status: 401 });
+  if (!isOperator(request, env)) return Response.json({ error: 'unauthorised' }, { status: 401 });
   const store = accessRequestStore(env);
   if (!store) return Response.json({ error: 'storage_not_configured' }, { status: 503 });
   const sender = emailSender(env);

@@ -140,6 +140,16 @@ describe('email retries', () => {
     expect(nextAttemptAfter(MAX_EMAIL_ATTEMPTS, now)).toBeNull();
   });
 
+  it('shows an operator the stored status without personal details', async () => {
+    const { deps, store } = setup();
+    const result = await submitAccessRequest(deps, valid, { hash: 'c' });
+    if (result.kind !== 'recorded') throw new Error('not recorded');
+    const status = await store.statusOf(result.reference);
+    expect(status).toMatchObject({ reference: result.reference, emailStatus: 'accepted', emailProviderId: 'mock-1' });
+    expect(JSON.stringify(status)).not.toContain('test.visitor@example.com');
+    expect(await store.statusOf('ARQ-MISSING0')).toBeNull();
+  });
+
   it('purges requests older than the retention period', async () => {
     const { deps, store, advance } = setup();
     await submitAccessRequest(deps, valid, { hash: 'c' });
