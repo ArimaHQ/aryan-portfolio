@@ -276,7 +276,7 @@ window.ARIMA = {
     { name: 'Research & open projects', line: 'The public research pages, opening in stages.', href: '/research-projects/', status: 'available' },
     { name: 'Client portfolio access', line: 'For authorised client workspaces only.', href: '/client-portfolio/', status: 'available' },
     { name: 'Finance Engine demo', line: 'Public, synthetic and unable to trade.', href: 'https://github.com/ArimaHQ/Arima-Finance-Engine', status: 'available' },
-    { name: 'Watch the ARIMA film', line: 'The current cinematic introduction.', href: '/media/arima-teaser.mp4', video: { src: '/media/arima-teaser.mp4', poster: '/media/arima-teaser-poster.jpg' }, status: 'available' },
+    { name: 'Watch the ARIMA film', line: 'The current cinematic introduction.', href: '/media/arima-teaser.mp4', video: { src: '/media/arima-teaser.mp4', webm: '/media/arima-teaser.webm', poster: '/media/arima-teaser-poster.jpg' }, status: 'available' },
     { name: 'Collaborate or get in touch', line: 'A public contact address will appear here once it is confirmed.', href: null, status: 'unverified' }
   ],
 
