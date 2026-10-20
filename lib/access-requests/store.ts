@@ -1,4 +1,5 @@
-// Durable storage for access requests. Production uses a Cloudflare D1 binding;
+// Durable storage for access requests. Production uses the AccessRequestsStore Durable Object
+// (SQLite, lib/access-requests/durable-object.mjs);
 // tests use MemoryAccessRequestStore (a labelled mock, never used in production).
 import type { AccessRequestFields } from './validation';
 
@@ -24,6 +25,9 @@ export type EmailOutcome =
   | { status: 'accepted'; providerId: string | null; at: string }
   | { status: 'failed' | 'pending'; error: string; nextAttemptAt: string | null };
 
+export type RequestStatus = Pick<AccessRequestRecord,
+  'reference' | 'createdAt' | 'emailStatus' | 'emailAttempts' | 'emailLastError' | 'emailProviderId' | 'emailAcceptedAt'>;
+
 export interface AccessRequestStore {
   /** Inserts the record, or returns the existing one with the same submissionId. */
   insert(record: AccessRequestRecord): Promise<{ record: AccessRequestRecord; duplicate: boolean }>;
@@ -34,17 +38,9 @@ export interface AccessRequestStore {
   purgeOlderThan(cutoffIso: string): Promise<number>;
   /** Puts requests whose email failed for good back in the queue (after a configuration fix). */
   requeueFailed(nowIso: string): Promise<number>;
+  /** Operator view of one request, without personal details. */
+  statusOf(reference: string): Promise<RequestStatus | null>;
 }
-
-// Minimal D1 surface, so the app does not depend on Workers type packages.
-type D1Result<T> = { results?: T[]; meta?: { changes?: number } };
-type D1Statement = {
-  bind(...values: unknown[]): D1Statement;
-  first<T>(): Promise<T | null>;
-  all<T>(): Promise<D1Result<T>>;
-  run(): Promise<D1Result<unknown>>;
-};
-export type D1DatabaseLike = { prepare(query: string): D1Statement };
 
 type Row = {
   id: string; submission_id: string; reference: string; first_name: string; last_name: string; email: string; phone: string;
@@ -52,7 +48,7 @@ type Row = {
   email_last_error: string | null; email_provider_id: string | null; email_accepted_at: string | null; next_attempt_at: string | null;
 };
 
-function fromRow(row: Row): AccessRequestRecord {
+export function fromRow(row: Row): AccessRequestRecord {
   return {
     id: row.id, submissionId: row.submission_id, reference: row.reference,
     firstName: row.first_name, lastName: row.last_name, email: row.email, phone: row.phone,
@@ -63,59 +59,54 @@ function fromRow(row: Row): AccessRequestRecord {
   };
 }
 
-export class D1AccessRequestStore implements AccessRequestStore {
-  constructor(private readonly db: D1DatabaseLike) {}
+// RPC surface of the Durable Object (see durable-object.mjs). Rows come back as plain objects.
+type StoreStub = {
+  insert(record: AccessRequestRecord): Promise<{ row: Row; duplicate: boolean }>;
+  countRecentByClient(clientHash: string, sinceIso: string): Promise<number>;
+  dueForEmail(nowIso: string, limit: number): Promise<Row[]>;
+  recordEmailOutcome(id: string, outcome: EmailOutcome): Promise<void>;
+  purgeOlderThan(cutoffIso: string): Promise<number>;
+  requeueFailed(nowIso: string): Promise<number>;
+  statusOf(reference: string): Promise<Row | null>;
+};
+export type DurableObjectNamespaceLike = { idFromName(name: string): unknown; get(id: unknown): unknown };
 
-  async insert(record: AccessRequestRecord) {
-    const result = await this.db.prepare(
-      `INSERT INTO access_requests (id, submission_id, reference, first_name, last_name, email, phone, page, locale, client_hash,
-        created_at, email_status, email_attempts, next_attempt_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?)
-       ON CONFLICT(submission_id) DO NOTHING`,
-    ).bind(record.id, record.submissionId, record.reference, record.firstName, record.lastName, record.email, record.phone,
-      record.page, record.locale, record.clientHash, record.createdAt, record.createdAt).run();
-    const row = await this.db.prepare('SELECT * FROM access_requests WHERE submission_id = ?').bind(record.submissionId).first<Row>();
-    if (!row) throw new Error('access_request_not_persisted');
-    return { record: fromRow(row), duplicate: (result.meta?.changes ?? 0) === 0 };
+export class DurableObjectAccessRequestStore implements AccessRequestStore {
+  private readonly stub: StoreStub;
+
+  constructor(namespace: DurableObjectNamespaceLike) {
+    // One instance holds every request, so idempotency and rate limits see all of them.
+    this.stub = namespace.get(namespace.idFromName('access-requests')) as StoreStub;
   }
 
-  async countRecentByClient(clientHash: string, sinceIso: string) {
-    const row = await this.db.prepare('SELECT COUNT(*) AS n FROM access_requests WHERE client_hash = ? AND created_at >= ?')
-      .bind(clientHash, sinceIso).first<{ n: number }>();
-    return row?.n ?? 0;
+  async insert(record: AccessRequestRecord) {
+    const { row, duplicate } = await this.stub.insert(record);
+    return { record: fromRow(row), duplicate };
+  }
+
+  countRecentByClient(clientHash: string, sinceIso: string) {
+    return this.stub.countRecentByClient(clientHash, sinceIso);
   }
 
   async dueForEmail(nowIso: string, limit: number) {
-    const { results } = await this.db.prepare(
-      `SELECT * FROM access_requests WHERE email_status IN ('pending', 'failed') AND next_attempt_at IS NOT NULL AND next_attempt_at <= ?
-       ORDER BY created_at LIMIT ?`,
-    ).bind(nowIso, limit).all<Row>();
-    return (results ?? []).map(fromRow);
+    return (await this.stub.dueForEmail(nowIso, limit)).map(fromRow);
   }
 
-  async recordEmailOutcome(id: string, outcome: EmailOutcome) {
-    if (outcome.status === 'accepted') {
-      await this.db.prepare(
-        `UPDATE access_requests SET email_status = 'accepted', email_attempts = email_attempts + 1, email_last_error = NULL,
-          email_provider_id = ?, email_accepted_at = ?, next_attempt_at = NULL WHERE id = ?`,
-      ).bind(outcome.providerId, outcome.at, id).run();
-      return;
-    }
-    await this.db.prepare(
-      `UPDATE access_requests SET email_status = ?, email_attempts = email_attempts + 1, email_last_error = ?, next_attempt_at = ? WHERE id = ?`,
-    ).bind(outcome.status, outcome.error, outcome.nextAttemptAt, id).run();
+  recordEmailOutcome(id: string, outcome: EmailOutcome) {
+    return this.stub.recordEmailOutcome(id, outcome);
   }
 
-  async purgeOlderThan(cutoffIso: string) {
-    const result = await this.db.prepare('DELETE FROM access_requests WHERE created_at < ?').bind(cutoffIso).run();
-    return result.meta?.changes ?? 0;
+  purgeOlderThan(cutoffIso: string) {
+    return this.stub.purgeOlderThan(cutoffIso);
   }
 
-  async requeueFailed(nowIso: string) {
-    const result = await this.db.prepare(
-      `UPDATE access_requests SET email_status = 'pending', email_attempts = 0, next_attempt_at = ? WHERE email_status = 'failed'`,
-    ).bind(nowIso).run();
-    return result.meta?.changes ?? 0;
+  requeueFailed(nowIso: string) {
+    return this.stub.requeueFailed(nowIso);
+  }
+
+  async statusOf(reference: string) {
+    const row = await this.stub.statusOf(reference);
+    return row ? toStatus(fromRow(row)) : null;
   }
 }
 
@@ -165,4 +156,14 @@ export class MemoryAccessRequestStore implements AccessRequestStore {
     for (const r of this.records.values()) if (r.emailStatus === 'failed') { Object.assign(r, { emailStatus: 'pending', emailAttempts: 0, nextAttemptAt: nowIso }); n += 1; }
     return n;
   }
+
+  async statusOf(reference: string) {
+    const record = [...this.records.values()].find((r) => r.reference === reference);
+    return record ? toStatus(record) : null;
+  }
+}
+
+function toStatus(r: AccessRequestRecord): RequestStatus {
+  const { reference, createdAt, emailStatus, emailAttempts, emailLastError, emailProviderId, emailAcceptedAt } = r;
+  return { reference, createdAt, emailStatus, emailAttempts, emailLastError, emailProviderId, emailAcceptedAt };
 }

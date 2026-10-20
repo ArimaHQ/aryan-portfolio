@@ -67,7 +67,10 @@ export class ResendEmailSender implements EmailSender {
         return { ok: true, providerId: typeof body.id === 'string' ? body.id : null };
       }
       const retryable = response.status === 429 || response.status >= 500;
-      return { ok: false, error: `provider_http_${response.status}`, retryable };
+      // Keep the provider's error name (e.g. validation_error) for diagnosis; never its message text.
+      const body = (await response.json().catch(() => ({}))) as { name?: unknown };
+      const name = typeof body.name === 'string' && /^[a-z_]{1,40}$/.test(body.name) ? `_${body.name}` : '';
+      return { ok: false, error: `provider_http_${response.status}${name}`, retryable };
     } catch {
       return { ok: false, error: 'provider_unreachable', retryable: true };
     }
