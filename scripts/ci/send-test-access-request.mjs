@@ -18,6 +18,16 @@ const payload = {
   elapsedMs: 30_000, confirmed: true, website: '', page: '/journey/', locale: 'en',
 };
 
+// Earlier requests whose email failed for good (for example before the sender was fixed) go back in the queue.
+if (adminToken) {
+  const retry = await fetch(`${base}/api/access-requests/retry?include_failed=1`, {
+    method: 'POST', headers: { Authorization: `Bearer ${adminToken}` },
+  });
+  const retried = await retry.json().catch(() => ({}));
+  console.log(`POST /api/access-requests/retry -> HTTP ${retry.status}`, JSON.stringify(retried));
+  summary(`- Retry of earlier failed emails: HTTP ${retry.status} \`${JSON.stringify(retried)}\``);
+}
+
 const response = await fetch(`${base}/api/access-requests`, {
   method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base }, body: JSON.stringify(payload),
 });

@@ -20,9 +20,17 @@ if (!result.emailConfigured) {
 }
 summary(`- Sender in use: \`${result.from}\``);
 summary(`- Domain \`${domain.domain ?? 'arimafinance.xyz'}\` in Resend: **${domain.status ?? 'check failed'}**`);
-if (domain.status === 'verified' && result.from !== domain.recommendedFrom) {
-  execFileSync('npx', ['wrangler', 'secret', 'put', 'ACCESS_REQUEST_EMAIL_FROM'], { input: domain.recommendedFrom, stdio: ['pipe', 'inherit', 'inherit'] });
-  summary(`- Sender switched to \`${domain.recommendedFrom}\``);
+// The sender given to this run wins; otherwise switch to the ARIMA domain once Resend reports it verified.
+const requested = (process.env.EMAIL_FROM ?? '').trim();
+if (requested && !/^[^<>\r\n]{1,60} <[^<>@\s]+@[a-z0-9.-]+\.[a-z]{2,}>$/i.test(requested)) {
+  console.error(`email_from must look like "ARIMA Access <access@arimafinance.xyz>"`);
+  process.exit(1);
+}
+const wanted = requested || (domain.status === 'verified' ? domain.recommendedFrom : '');
+if (wanted && result.from !== wanted) {
+  execFileSync('npx', ['wrangler', 'secret', 'put', 'ACCESS_REQUEST_EMAIL_FROM'], { input: wanted, stdio: ['pipe', 'inherit', 'inherit'] });
+  summary(`- Sender switched to \`${wanted}\``);
+  console.log(`sender switched to ${wanted}`);
 }
 if (records.length && domain.status !== 'verified') {
   summary('\nAdd these DNS records for the domain, then re-run this workflow:\n');
