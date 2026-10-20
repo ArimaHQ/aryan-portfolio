@@ -919,6 +919,28 @@ const worldViz=(function(){const c=$('#worldCanvas'),g=c.getContext('2d');let on
 $('#nextLinks').innerHTML=A.next.map((n,i)=>n.href?`<a class="glass pad rv d${i%3}" href="${esc(n.href)}">${chip(n.status)}<b>${esc(n.name)}</b><span class="small">${esc(n.line)}</span><span class="arrow small" style="color:rgb(var(--hi))">Open</span></a>`
   :`<div class="glass pad rv d${i%3}">${chip(n.status)}<b>${esc(n.name)}</b><span class="small">${esc(n.line)}</span></div>`).join('');
 
+/* The ARIMA film card opens the official teaser in an on-page player */
+(function film(){
+  const n=A.next.find(x=>x.video);if(!n)return;
+  const card=$(`#nextLinks a[href="${n.href}"]`);if(!card)return;
+  const st=document.createElement('style');
+  st.textContent=`#filmPlayer{padding:0;border:0;background:transparent;width:min(1100px,calc(100vw - 32px),calc((100dvh - 120px) * 16 / 9));max-width:none;max-height:none;overflow:visible;color:inherit}
+#filmPlayer::backdrop{background:rgba(1,3,5,.88)}
+#filmPlayer .film-top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+#filmPlayer video{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:14px}`;
+  document.head.appendChild(st);
+  const dlg=h('dialog',{id:'filmPlayer','aria-label':n.name},`<div class="film-top"><span class="mono" style="color:rgb(var(--hi))">${esc(n.name)}</span>
+    <button class="icon-btn" type="button" id="filmClose" aria-label="Close film"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <video controls playsinline preload="none" poster="${esc(n.video.poster)}"><source src="${esc(n.video.src)}" type="video/mp4"><source src="${esc(n.video.webm)}" type="video/webm"></video>`);
+  body.appendChild(dlg);
+  const v=dlg.querySelector('video');
+  const stop=()=>{v.pause();try{v.currentTime=0}catch(e){}};
+  card.addEventListener('click',e=>{if(typeof dlg.showModal!=='function')return;e.preventDefault();dlg.showModal();body.style.overflow='hidden';const p=v.play();if(p&&p.catch)p.catch(()=>{})});
+  dlg.addEventListener('close',()=>{stop();if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});body.style.overflow='';card.focus()});
+  $('#filmClose').onclick=()=>dlg.close();
+  dlg.addEventListener('click',e=>{if(e.target===dlg)dlg.close()});
+})();
+
 /* =====================================================================
    12. REVEALS, SCROLL, RESIZE, START
    ===================================================================== */
