@@ -65,7 +65,6 @@ const journey=(function(){
   const K=[['top',          1,   0,   0,   0,   1.1,  0],
            ['about',        .6,  0,   0,   0,   1.04, .1],
            ['ecosystem',    .32, 0,   0,   0,   1,    .2],
-           ['founder',      .14, 0,   0,   0,   .95,  .3],
            ['data',         0,   .85, 0,   0,   .9,   .5],
            ['miniapp',      0,   .7,  0,   0,   .85,  .55],
            ['research',     0,   0,   .8,  .1,  .8,   .62],
@@ -425,7 +424,7 @@ function trap(container,e){if(e.key!=='Tab')return;const f=[...container.querySe
 $('#explore').addEventListener('keydown',e=>{if(e.key==='Escape')closeExplore();trap($('#explore'),e)});
 
 /* =====================================================================
-   4. IDENTITY WORLD: signal layers, ecosystem map, drawer, routes, founder
+   4. IDENTITY WORLD: signal layers, ecosystem map, drawer and routes
    ===================================================================== */
 (function signal(){
   const svg=$('#signalSvg');const r=seeded(11);const N=120;
@@ -498,11 +497,6 @@ drawer.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();trap(dra
 })();
 
 (function routes(){const r=$('#routes');A.routes.forEach(x=>r.appendChild(h('a',{href:x.href},`<b>${esc(x.who)}</b><span>${esc(x.line)}</span><span class="arrow small" style="color:rgb(var(--hi))">Go</span>`)))})();
-
-(function founder(){const f=A.founder;$('#fName').textContent=f.name;$('#fRole').textContent=`${f.role}. ${f.fields}.`;
-  const rows=[['Education',f.education.map(e=>esc(e.degree)+(e.place?`, ${esc(e.place)}`:'')).join('<br>')],['Professional experience',f.environments.map(e=>`${esc(e.org)} · ${esc(e.area)}`).join('<br>')],['Qualifications',f.qualifications.map(esc).join('<br>')]];
-  $('#fFacts').innerHTML=rows.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
-  $('#fQuote').textContent='“'+f.statement+'”';$('#fDisc').textContent=f.disclaimer})();
 
 /* =====================================================================
    5. DATA WORLD: sources, stages, Mini App

@@ -203,17 +203,6 @@ a:hover .arrow::after,.arrow:hover::after{transform:translateX(3px)}
 .lite .routes a{background:rgba(8,14,24,.96)}
 @media (max-width:860px){.routes{grid-template-columns:minmax(0,1fr)}}
 
-.founder{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(24px,4vw,64px);align-items:center}
-.founder>*{min-width:0}
-.monogram{aspect-ratio:1;max-width:320px;width:100%;border-radius:50%;display:grid;place-items:center;font-size:clamp(60px,8vw,104px);font-weight:300;letter-spacing:.06em;
-  background:radial-gradient(circle at 35% 30%,rgba(var(--hi),.35),rgba(var(--acc),.12) 55%,rgba(255,255,255,.02));border:1px solid rgba(var(--hi),.3);
-  box-shadow:0 0 120px -30px rgba(var(--acc),.8),inset 0 0 60px rgba(var(--acc),.18)}
-.facts{display:grid;margin:26px 0 0}
-.facts div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:16px;padding:12px 0;border-top:1px solid var(--line);font-size:15px}
-.facts dt{color:var(--faint);font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding-top:3px}
-.facts dd{margin:0}
-.quote{font-size:clamp(22px,2.2vw,30px);font-weight:300;letter-spacing:-.02em;line-height:1.3;margin-top:28px}
-@media (max-width:900px){.founder{grid-template-columns:minmax(0,1fr)}.monogram{max-width:180px}.facts div{grid-template-columns:minmax(0,1fr);gap:2px}}
 
 .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,4vw,64px);align-items:start}
 .split>*{min-width:0}
@@ -587,19 +576,6 @@ footer{padding:60px 20px calc(60px + env(safe-area-inset-bottom,0px));text-align
     <div class="routes rv" id="routes" aria-label="Choose your route"></div>
   </section>
 
-  <section class="wrap s" id="founder">
-    <div class="founder">
-      <div class="rv"><div class="monogram" aria-hidden="true">AH</div></div>
-      <div>
-        <p class="eyebrow rv">The founder</p>
-        <h2 class="rv d1" id="fName"></h2>
-        <p class="lead rv d2" id="fRole"></p>
-        <dl class="facts rv d2" id="fFacts"></dl>
-        <p class="quote rv d3" id="fQuote"></p>
-        <p class="small rv d3" style="margin-top:16px;color:var(--faint)" id="fDisc"></p>
-      </div>
-    </div>
-  </section>
 </div>
 
 <!-- ================= WORLD II · RED · DATA ================= -->

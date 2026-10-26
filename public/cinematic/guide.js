@@ -22,9 +22,9 @@
       askPh: 'Ask about ARIMA', emailLabel: 'Your email address',
       speaking: 'Speaking…', listening: 'Listening…', idle: '',
       intro: 'Hello. I’m ARIMA’s automated guide, not a person. I answer from what this website says, so I won’t guess at prices, dates or account details. Ask me about the Journey, or I can help you request account access.',
-      chipsChat: ['What is ARIMA?', 'What have I seen so far?', 'Who is the founder?', 'What do the status labels mean?'],
+      chipsChat: ['What is ARIMA?', 'What have I seen so far?', 'What do the status labels mean?'],
       chipRequest: 'Request account access',
-      unknown: 'I don’t have an approved answer for that on this website, so I won’t guess. You could ask about a part of the Journey, the founder, or how to request access.',
+      unknown: 'I don’t have an approved answer for that on this website, so I won’t guess. You could ask about a part of the Journey or how to request access.',
       source: 'From this website’s Journey content.',
       price: 'This website doesn’t publish prices or fees, so I can’t quote any.',
       dates: 'This website doesn’t give release or launch dates. Each part of ARIMA shows its current status instead, such as “In development” or “Planned”.',
@@ -35,8 +35,6 @@
       statusIntro: 'Every part of ARIMA carries a status label:',
       contact: 'A public contact address isn’t published on this site yet. You can request account access here, or use the next steps above.',
       accessOffer: 'I can take an access request now. It’s four short questions, and it doesn’t create or approve an account by itself.',
-      founderLead: (f) => `${f.name} is the ${f.role.toLowerCase().replace('arima', 'ARIMA')}.`,
-      founderEdu: 'Education', founderExp: 'Experience', founderQual: 'Qualifications',
       routes: {
         portfolio: ['Client portfolio access is for authorised client workspaces only.', '/client-portfolio/', 'Open client portfolio'],
         film: ['The current cinematic ARIMA film is on its own page.', '/watch-intro/', 'Watch the film'],
@@ -105,8 +103,6 @@
       statusIntro: 'هر بخش آریما یک برچسب وضعیت دارد:',
       contact: 'هنوز نشانی تماس عمومی در این سایت منتشر نشده است. می‌توانید همین‌جا درخواست دسترسی بفرستید یا از گام‌های بعدیِ بالای صفحه استفاده کنید.',
       accessOffer: 'می‌توانم همین حالا درخواست دسترسی شما را ثبت کنم. چهار سؤال کوتاه است و به‌تنهایی حسابی نمی‌سازد یا تأیید نمی‌کند.',
-      founderLead: (f) => `${f.name} بنیان‌گذار آریما فایننس است.`,
-      founderEdu: 'تحصیلات', founderExp: 'سوابق کاری', founderQual: 'مدارک',
       routes: {
         portfolio: ['دسترسی به پورتفولیوی مشتریان فقط برای فضاهای کاری مشتریان مجاز است.', '/client-portfolio/', 'ورود به پورتفولیوی مشتری'],
         film: ['فیلم سینمایی فعلی آریما صفحه جداگانه‌ای دارد.', '/watch-intro/', 'تماشای فیلم'],
@@ -349,15 +345,6 @@
       if (!list.length) return say(L.visitedNone);
       addMsg('g', esc(L.visited('\u2066' + list.join(', ') + '\u2069')), { lang });
       speak(L.visited(list.join(', ')), lang);
-      return;
-    }
-    if (has(/founder|aryan|heidari|who (built|founded|runs|started)|بنیان|موسس|مؤسس|آرین|حیدری/)) {
-      const f = A.founder;
-      const edu = f.education.map((e) => esc(e.degree) + (e.place ? `, ${esc(e.place)}` : '')).join('; ');
-      const exp = f.environments.map((e) => `${esc(e.org)}: ${esc(e.area)}`).join('; ');
-      const qual = (f.qualifications || []).map(esc).join('; ');
-      addMsg('g', `${esc(L.founderLead(f))}<br><b>${esc(L.founderEdu)}:</b> ${ltr(edu)}<br><b>${esc(L.founderExp)}:</b> ${ltr(exp)}${qual ? `<br><b>${esc(L.founderQual)}:</b> ${ltr(qual)}` : ''}<span class="src">${esc(L.source)}</span>`, { lang });
-      speak(`${L.founderLead(f)} ${lang === 'en' ? `${L.founderEdu}: ${f.education.map((e) => e.degree).join(', ')}. ${L.founderQual}: ${(f.qualifications || []).join(' ')}` : ''}`, lang);
       return;
     }
     if (has(/status|label|in development|planned|research concept|برچسب|وضعیت/)) {

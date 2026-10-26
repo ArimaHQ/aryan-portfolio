@@ -19,7 +19,6 @@ window.ARIMA = {
   nav: [
     { id: 'about',       label: 'About ARIMA',          world: 0 },
     { id: 'ecosystem',   label: 'Ecosystem',            world: 0 },
-    { id: 'founder',     label: 'Founder',              world: 0 },
     { id: 'data',        label: 'Data & Engineering',   world: 1 },
     { id: 'miniapp',     label: 'Mini App & alerts',    world: 1 },
     { id: 'research',    label: 'Research',             world: 2 },
@@ -40,7 +39,6 @@ window.ARIMA = {
     { who: 'Researchers & learners',    line: 'See the models, their assumptions and where they break.',                href: '#research' },
     { who: 'Technology explorers',      line: 'Follow data from its source to a traceable conclusion.',                 href: '#data' },
     { who: 'Collaborators',             line: 'Research, academic and long-term partnership conversations.',            href: '#contact' },
-    { who: 'Founder & company',         line: 'Who is building ARIMA, and why.',                                        href: '#founder' }
   ],
 
   /* ---------- platforms: the 8 questions each ---------- */
@@ -331,28 +329,6 @@ window.ARIMA = {
     { name: 'World experience', status: 'local',       line: 'A meeting summary written by the Brain.' },
     { name: 'ETF example', status: 'local',            line: 'NAV premium or discount, with evidence.' }
   ],
-
-  founder: {
-    name: 'Aryan Heidari',
-    role: 'Founder of Arima Finance',
-    fields: 'Finance · Quantitative Research · Technology',
-    education: [
-      { degree: 'PhD in Finance and Economics', place: '' },
-      { degree: 'MSc Finance & Accounting', place: 'Anglia Ruskin University, London' },
-      { degree: 'BSc Avionics Engineering', place: 'National Aviation University, Kyiv' }
-    ],
-    environments: [
-      { org: 'Bank of England', area: 'Research Analyst, working on the central bank’s strategic gold reserves' },
-      { org: 'EY', area: 'Junior Accountant' },
-      { org: 'Artin & Partners', area: 'Investment Banking Analyst' },
-      { org: 'Samuel & Co Trading', area: 'FX Trading' },
-      { org: 'Technology entrepreneurship', area: 'Founder projects' }
-    ],
-    qualifications: ['Passed Level III of the CFA Program.'],
-    statement: 'Building financial systems where research, technology and risk discipline converge.',
-    disclaimer: 'Organisation names refer to the founder’s professional background and do not imply endorsement or affiliation with Arima Finance.',
-    src: 'Founder-provided facts (20 Oct 2026) and components/PhaseOneFilm.tsx'
-  },
 
   links: {
     film: '/watch-intro/',
